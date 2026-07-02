@@ -18,7 +18,7 @@ use camino::Utf8Path;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 
 /// The result of trying to generate random-test cases for one problem.
-pub(crate) enum GenerateOutcome {
+pub(super) enum GenerateOutcome {
     /// `random_test:` present and usable.
     Ready {
         /// `(name, input)` in output order. Names are `corner{n}` / `random{n}`
@@ -41,7 +41,7 @@ pub(crate) enum GenerateOutcome {
 /// Read the `random_test:` section and generate cases. `Ok(None)` means there
 /// is no `random_test:` section (e.g. a non-AtCoder problem) and the caller
 /// should skip silently. The RNG is seeded from entropy.
-pub(crate) fn generate_cases(
+pub(super) fn generate_cases(
     yml_path: &Utf8Path,
     count: u32,
 ) -> anyhow::Result<Option<GenerateOutcome>> {

@@ -1,6 +1,6 @@
 //! Enforcement and generation support for persisted `ordering` / `not_equal` pairs.
 
-use super::context::{ArrayCtx, Ctx, StrCtx};
+use super::context::{ArrayCtx, ScalarCtx, StrCtx};
 use super::gen::{gen_int, gen_int_array};
 use super::spec::ResolvedSpec;
 use super::strategy::{CaseStrategy, DeterministicStrategy, RandomStrategy};
@@ -53,7 +53,7 @@ pub(super) fn effective_array_strategy(
 /// compare the scalar against every known element.
 pub(super) fn pairs_ok(
     spec: &ResolvedSpec,
-    sc: &Ctx,
+    sc: &ScalarCtx,
     strings: &StrCtx,
     arrays: &ArrayCtx,
     parent: Option<&HashSet<String>>,
@@ -137,7 +137,7 @@ pub(super) fn narrow_scalar_bounds(
     lo: i64,
     hi: i64,
     spec: &ResolvedSpec,
-    ctx: &Ctx,
+    ctx: &ScalarCtx,
     array_ctx: &ArrayCtx,
 ) -> Option<(i64, i64)> {
     let (mut lo, mut hi) = narrow_bounds_from_scalars(name, lo, hi, spec, ctx)?;
@@ -161,7 +161,7 @@ pub(super) fn narrow_bounds_from_scalars(
     lo: i64,
     hi: i64,
     spec: &ResolvedSpec,
-    ctx: &Ctx,
+    ctx: &ScalarCtx,
 ) -> Option<(i64, i64)> {
     let mut lo = lo;
     let mut hi = hi;
@@ -239,7 +239,7 @@ pub(super) fn has_array_element_constraints(
     start: usize,
     len: usize,
     spec: &ResolvedSpec,
-    ctx: &Ctx,
+    ctx: &ScalarCtx,
     array_ctx: &ArrayCtx,
 ) -> bool {
     if has_positional_array_bounds(name, start, len, spec, array_ctx) {
@@ -259,7 +259,7 @@ pub(super) fn has_array_element_constraints(
 pub(super) fn not_equal_forbidden_scalar(
     name: &str,
     spec: &ResolvedSpec,
-    ctx: &Ctx,
+    ctx: &ScalarCtx,
     array_ctx: &ArrayCtx,
 ) -> HashSet<i64> {
     let mut forbidden = HashSet::new();
@@ -282,7 +282,7 @@ fn element_satisfies_not_equal(
     index: usize,
     value: i64,
     spec: &ResolvedSpec,
-    ctx: &Ctx,
+    ctx: &ScalarCtx,
     array_ctx: &ArrayCtx,
 ) -> bool {
     spec.not_equal.iter().all(|pair| {
@@ -301,7 +301,7 @@ fn not_equal_forbidden_element(
     name: &str,
     index: usize,
     spec: &ResolvedSpec,
-    ctx: &Ctx,
+    ctx: &ScalarCtx,
     array_ctx: &ArrayCtx,
 ) -> HashSet<i64> {
     let mut forbidden = HashSet::new();
@@ -329,7 +329,7 @@ pub(super) fn gen_int_array_with_positional_bounds(
     values: Option<&[i64]>,
     distinct: bool,
     spec: &ResolvedSpec,
-    ctx: &Ctx,
+    ctx: &ScalarCtx,
     array_ctx: &ArrayCtx,
     start: usize,
     rng: &mut impl Rng,
@@ -749,7 +749,7 @@ mod tests {
 
         // x already emitted as the identity permutation; n known as a scalar so
         // the scalar ordering y <= n is "active" in the sense the old gate used.
-        let mut ctx: Ctx = HashMap::new();
+        let mut ctx: ScalarCtx = HashMap::new();
         ctx.insert("n".into(), n);
         let mut array_ctx: ArrayCtx = HashMap::new();
         array_ctx.insert("x".into(), (1..=n).collect());

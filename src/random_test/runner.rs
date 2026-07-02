@@ -16,7 +16,7 @@ use snowchains_core::{
 use std::{path::Path, sync::Arc, time::Duration};
 use termcolor::Color;
 
-const DISPLAY_LIMIT_NOTE: &str = "output beyond --display-limit (default: 4KiB; e.g. 152834 B) is truncated; change the limit with --display-limit";
+const DISPLAY_LIMIT_NOTE: &str = "output beyond --display-limit (default: 4KiB; e.g. 100000 B) is truncated; change the limit with --display-limit";
 
 pub(crate) struct RandomTestArgs<'a> {
     pub artifact: &'a Path,

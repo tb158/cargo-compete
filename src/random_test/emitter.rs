@@ -1,7 +1,7 @@
 //! Value generation and output emission for a walked format block.
 
 use super::budget::{Budget, GenError};
-use super::context::{ArrayCtx, Ctx};
+use super::context::{ArrayCtx, ScalarCtx};
 use super::gen::{effective_lo_hi, gen_string, strategy_size_value, StructuralSizes};
 use super::relation::{
     bounded_distinct_int, effective_array_strategy, gen_int_array_with_positional_bounds,
@@ -35,7 +35,7 @@ pub(super) fn constrained_scalar_value(
     info: &VarInfo,
     sizes: &StructuralSizes,
     st: &CaseStrategy,
-    ctx: &Ctx,
+    ctx: &ScalarCtx,
     array_ctx: &ArrayCtx,
     rng: &mut impl Rng,
 ) -> Option<i64> {
@@ -88,7 +88,7 @@ fn size_value(
         info,
         sizes,
         st,
-        &Ctx::new(),
+        &ScalarCtx::new(),
         &ArrayCtx::new(),
         rng,
     )
@@ -103,7 +103,7 @@ pub(super) fn resolve_count(
     spec: &ResolvedSpec,
     sizes: &StructuralSizes,
     st: &CaseStrategy,
-    ctx: &mut Ctx,
+    ctx: &mut ScalarCtx,
     rng: &mut impl Rng,
 ) -> Option<i64> {
     if let Some(&v) = ctx.get(name) {
@@ -133,7 +133,7 @@ fn resolve_len(
     spec: &ResolvedSpec,
     sizes: &StructuralSizes,
     st: &CaseStrategy,
-    ctx: &mut Ctx,
+    ctx: &mut ScalarCtx,
     rng: &mut impl Rng,
 ) -> Option<usize> {
     let len = match repr
@@ -166,7 +166,7 @@ fn is_synthetic_chars_len(name: &str) -> bool {
 pub(super) fn gen_chars(
     info: &VarInfo,
     env: &RenderEnv<'_>,
-    ctx: &mut Ctx,
+    ctx: &mut ScalarCtx,
     budget: &mut Budget,
     rng: &mut impl Rng,
 ) -> Result<Option<String>, GenError> {
@@ -222,7 +222,7 @@ pub(super) fn render_jagged(
     spec: &ResolvedSpec,
     st: &CaseStrategy,
     sizes: &StructuralSizes,
-    ctx: &mut Ctx,
+    ctx: &mut ScalarCtx,
     array_ctx: &mut ArrayCtx,
     lines: &mut Vec<String>,
     budget: &mut Budget,
@@ -316,7 +316,7 @@ pub(super) fn render_chars_array(
     spec: &ResolvedSpec,
     st: &CaseStrategy,
     sizes: &StructuralSizes,
-    ctx: &mut Ctx,
+    ctx: &mut ScalarCtx,
     lines: &mut Vec<String>,
     budget: &mut Budget,
     rng: &mut impl Rng,
@@ -365,7 +365,7 @@ pub(super) fn render_int_array(
     spec: &ResolvedSpec,
     st: &CaseStrategy,
     sizes: &StructuralSizes,
-    ctx: &mut Ctx,
+    ctx: &mut ScalarCtx,
     array_ctx: &mut ArrayCtx,
     lines: &mut Vec<String>,
     budget: &mut Budget,
@@ -472,7 +472,7 @@ pub(super) fn render_rows(
     spec: &ResolvedSpec,
     st: &CaseStrategy,
     sizes: &StructuralSizes,
-    ctx: &mut Ctx,
+    ctx: &mut ScalarCtx,
     array_ctx: &mut ArrayCtx,
     lines: &mut Vec<String>,
     budget: &mut Budget,

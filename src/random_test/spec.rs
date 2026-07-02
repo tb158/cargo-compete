@@ -15,7 +15,7 @@ use std::collections::{HashMap, HashSet};
 
 /// Upper bound of a numeric variable.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Hi {
+pub(super) enum Hi {
     /// Concrete literal upper bound from `range`.
     Fixed(i64),
     /// `range` upper bound absent but a `sum_limit` is present; the effective
@@ -25,7 +25,7 @@ pub(crate) enum Hi {
 
 /// Resolved per-variable information.
 #[derive(Debug, Clone)]
-pub(crate) struct VarInfo {
+pub(super) struct VarInfo {
     pub ty: VarType,
     /// Resolved lower bound. For an enum variable without a `range`, derived
     /// from `min(values)`. `0` placeholder when missing (recorded in
@@ -46,7 +46,7 @@ pub(crate) struct VarInfo {
 /// The yml `random_test:` section resolved for generation. The `FormatBlock`
 /// tree is kept verbatim (no lowering); the generator walks it directly.
 #[derive(Debug, Clone)]
-pub(crate) struct ResolvedSpec {
+pub(super) struct ResolvedSpec {
     pub format: Vec<FormatBlock>,
     pub vars: HashMap<String, VarInfo>,
     pub size_vars: HashSet<String>,
@@ -89,7 +89,7 @@ fn lit(b: Option<&BoundRepr>) -> Option<i64> {
 /// `TestCases.count`, `Queries.count`). The yml schema stores these as raw
 /// strings; only the three shapes below are supported.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum SizeTerm {
+pub(super) enum SizeTerm {
     /// Integer literal, e.g. `"3"`.
     Lit(i64),
     /// An exact `vars` key, e.g. `n` or `|S|` (pipes are part of the key).
@@ -119,7 +119,7 @@ fn strip_one_paren(s: &str) -> &str {
 ///
 /// `vars` is the resolved variable map; a name is valid iff it is an exact
 /// key (no tokenisation, so `|S|` matches verbatim).
-pub(crate) fn parse_size(expr: &str, vars: &HashMap<String, VarInfo>) -> Option<SizeTerm> {
+pub(super) fn parse_size(expr: &str, vars: &HashMap<String, VarInfo>) -> Option<SizeTerm> {
     let e = expr.trim();
     if let Ok(n) = e.parse::<i64>() {
         return Some(SizeTerm::Lit(n));
@@ -187,7 +187,7 @@ fn format_has_array(blocks: &[FormatBlock]) -> bool {
 }
 
 /// Resolve a `RandomTestSection` into a [`ResolvedSpec`].
-pub(crate) fn resolve(section: &RandomTestSection) -> ResolvedSpec {
+pub(super) fn resolve(section: &RandomTestSection) -> ResolvedSpec {
     let mut vars: HashMap<String, VarInfo> = HashMap::new();
     let mut missing: Vec<String> = Vec::new();
 
@@ -271,13 +271,22 @@ pub(crate) fn resolve(section: &RandomTestSection) -> ResolvedSpec {
         }
 
         let charset: Option<Vec<char>> = if vc.r#type == VarType::Chars {
-            let cs: Vec<char> = vc
-                .values
-                .iter()
-                .flatten()
-                .filter_map(|s| s.chars().next())
-                .collect();
-            if cs.is_empty() {
+            let mut cs: Vec<char> = Vec::new();
+            let mut malformed = false;
+            for s in vc.values.iter().flatten() {
+                let mut chars = s.chars();
+                match (chars.next(), chars.next()) {
+                    (Some(c), None) => cs.push(c),
+                    _ => malformed = true,
+                }
+            }
+            if malformed {
+                missing.push(format!(
+                    "variable `{name}`: Chars `values` entries must be single characters — edit \
+                     `random_test.vars.{name}.values` in the yml"
+                ));
+                None
+            } else if cs.is_empty() {
                 missing.push(format!(
                     "variable `{name}`: Chars charset missing — edit \
                      `random_test.vars.{name}.values` in the yml"
@@ -527,6 +536,28 @@ mod tests {
             .missing
             .iter()
             .any(|m| m.contains("Chars charset missing")));
+    }
+
+    #[test]
+    fn chars_multichar_values_entry_is_recorded_not_truncated() {
+        // "ab" must not be silently truncated to 'a'; the malformed entry is a
+        // yml problem the user has to fix, so it aborts via `missing`.
+        let mut v = BTreeMap::new();
+        v.insert(
+            "s".into(),
+            VarConstraint {
+                r#type: VarType::Chars,
+                values: Some(vec!["ab".into(), "c".into()]),
+                len: Some(BoundRepr::Lit(3)),
+                ..Default::default()
+            },
+        );
+        let r = resolve(&section(v, vec![]));
+        assert_eq!(r.vars["s"].charset, None);
+        assert!(r
+            .missing
+            .iter()
+            .any(|m| m.contains("must be single characters")));
     }
 
     #[test]

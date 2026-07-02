@@ -33,7 +33,7 @@ const CORNER_BUDGET: u32 = 20;
 /// Whole-case regeneration budget for plain random strategies.
 const RANDOM_BUDGET: u32 = 100;
 
-pub(crate) enum RenderResult {
+pub(super) enum RenderResult {
     Ready(String),
     Unsatisfied,
     /// Abort this problem's random test with an English reason: the case grew
@@ -57,7 +57,7 @@ impl RenderResult {
     }
 
     #[cfg(test)]
-    fn is_none(&self) -> bool {
+    fn is_unsatisfied(&self) -> bool {
         matches!(self, Self::Unsatisfied)
     }
 }
@@ -67,7 +67,7 @@ impl RenderResult {
 /// per-iteration) within [`CORNER_BUDGET`] whole-case retries. Plain `Random`
 /// also has a finite retry budget and returns an abort reason when exhausted
 /// so impossible or near-impossible constraints cannot loop forever.
-pub(crate) fn render_case(
+pub(super) fn render_case(
     spec: &ResolvedSpec,
     st: &CaseStrategy,
     rng: &mut impl Rng,
@@ -332,7 +332,7 @@ fn run_iteration(
 ) -> Result<bool, GenError> {
     for _ in 0..INNER_BUDGET {
         let mut tmp: Vec<String> = Vec::new();
-        let mark = budget.used;
+        let mark = budget.mark();
         let w = walk(
             format, spec, st, sizes, context, &mut tmp, budget, rng,
         )?;
@@ -364,7 +364,7 @@ fn run_iteration(
                 }
             }
         } else {
-            budget.used = mark;
+            budget.rollback_to(mark);
         }
         context.restore(checkpoint);
         if accepted {
@@ -670,6 +670,35 @@ mod tests {
             }
             RenderResult::Ready(_) => panic!("oversize int array should not render"),
             RenderResult::Unsatisfied => panic!("oversize int array is not a constraint miss"),
+            RenderResult::Interrupted => panic!("unexpected interrupt"),
+        }
+    }
+
+    #[test]
+    fn rows_oversize_aborts_before_allocating() {
+        // The row-count charge must land before any column is generated, so an
+        // oversize Rows block aborts instantly instead of materializing a
+        // 100M-element column first.
+        let big = (MAX_INPUT_ELEMENTS + 1) as i64;
+        let mut v = BTreeMap::new();
+        v.insert("n".into(), vc(big, big));
+        v.insert("x".into(), vc(1, 10));
+        let spec = mkspec(
+            v,
+            vec![
+                scalars(&["n"]),
+                FormatBlock::Rows(RowsBlock {
+                    vars: vec!["x".into()],
+                    len: "n".into(),
+                }),
+            ],
+        );
+        match render_case(&spec, &random(), &mut rng()) {
+            RenderResult::Abort(reason) => {
+                assert!(reason.contains("input too large"), "{}", reason);
+            }
+            RenderResult::Ready(_) => panic!("oversize rows should not render"),
+            RenderResult::Unsatisfied => panic!("oversize rows is not a constraint miss"),
             RenderResult::Interrupted => panic!("unexpected interrupt"),
         }
     }
@@ -1094,7 +1123,7 @@ mod tests {
         };
         sec2.ordering = vec![["a".into(), "b".into()]];
         let spec2 = resolve(&sec2);
-        assert!(render_case(&spec2, &det_max(), &mut rng()).is_none());
+        assert!(render_case(&spec2, &det_max(), &mut rng()).is_unsatisfied());
     }
 
     #[test]
@@ -1280,7 +1309,7 @@ mod tests {
         sec.ordering = vec![["a".into(), "x".into()]];
         let spec = resolve(&sec);
 
-        assert!(render_case(&spec, &det_min(), &mut rng()).is_none());
+        assert!(render_case(&spec, &det_min(), &mut rng()).is_unsatisfied());
         match render_case(&spec, &random(), &mut rng()) {
             RenderResult::Abort(reason) => {
                 assert!(reason.contains("100 attempts"), "{}", reason)
@@ -1413,7 +1442,7 @@ mod tests {
         sec.ordering = vec![["a".into(), "b".into()]];
         let spec = resolve(&sec);
 
-        assert!(render_case(&spec, &det_min(), &mut rng()).is_none());
+        assert!(render_case(&spec, &det_min(), &mut rng()).is_unsatisfied());
         match render_case(&spec, &random(), &mut rng()) {
             RenderResult::Abort(reason) => {
                 assert!(reason.contains("100 attempts"), "{}", reason)
@@ -1643,7 +1672,7 @@ mod tests {
         };
         sec2.not_equal = vec![["a".into(), "b".into()]];
         let spec2 = resolve(&sec2);
-        assert!(render_case(&spec2, &det_min(), &mut rng()).is_none());
+        assert!(render_case(&spec2, &det_min(), &mut rng()).is_unsatisfied());
     }
 
     #[test]
@@ -1788,7 +1817,7 @@ mod tests {
         };
         sec2.ordering = vec![["a".into(), "b".into()]];
         let spec2 = resolve(&sec2);
-        assert!(render_case(&spec2, &det_min(), &mut rng()).is_none());
+        assert!(render_case(&spec2, &det_min(), &mut rng()).is_unsatisfied());
     }
 
     #[test]

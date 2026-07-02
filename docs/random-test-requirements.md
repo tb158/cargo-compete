@@ -198,7 +198,7 @@ actual:
 EMPTY
 stderr:
 
-note: output beyond --display-limit (default: 4KiB; e.g. 152834 B) is truncated; change the limit with --display-limit
+note: output beyond --display-limit (default: 4KiB; e.g. 100000 B) is truncated; change the limit with --display-limit
 note: Accepted means no crash or TLE; output correctness is not verified ← ACがある場合のみ
 warning: skipped N unsupported constraint(s): {制約内容}  ← スキップがある場合のみ
 error: {失敗件数}/{総件数} tests failed  ← 失敗がある場合のみ
@@ -311,7 +311,7 @@ EMPTY
 expected: a-copy ←AC以外がある場合のみ
 actual: a        ←AC以外がある場合のみ
 
-note: output beyond --display-limit (default: 4KiB; e.g. 152834 B) is truncated; change the limit with --display-limit
+note: output beyond --display-limit (default: 4KiB; e.g. 100000 B) is truncated; change the limit with --display-limit
 warning: skipped N unsupported constraint(s): {制約内容}  ← スキップがある場合のみ
 error: {失敗件数}/{総件数} tests failed  ← 失敗がある場合のみ
 ```

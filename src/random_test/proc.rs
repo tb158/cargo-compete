@@ -5,7 +5,7 @@ use anyhow::Context as _;
 use std::{path::Path, time::Duration};
 
 #[derive(Debug)]
-pub(crate) enum RunResult {
+pub(super) enum RunResult {
     Ok(String),
     RuntimeError(i32),
     TimeLimitExceeded,
@@ -15,7 +15,7 @@ pub(crate) enum RunResult {
 ///
 /// `stderr` is discarded. A `None` timelimit means run to completion (used for
 /// slow brute-force binaries in cross-check).
-pub(crate) fn run_with_input(
+pub(super) fn run_with_input(
     artifact: &Path,
     input: &str,
     timelimit: Option<Duration>,

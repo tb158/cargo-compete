@@ -25,7 +25,7 @@ pub(crate) use runner::{run_cross_check, run_random_tests, CrossCheckArgs, Rando
 /// Random tests keep rendered cases in memory before judging. Inputs above this
 /// size are unlikely in normal AtCoder tasks and usually indicate a missing or
 /// misparsed constraint, so abort before the renderer allocates unbounded data.
-pub(crate) const MAX_INPUT_ELEMENTS: u128 = 100_000_000;
+const MAX_INPUT_ELEMENTS: u128 = 100_000_000;
 
 /// Print a section separator banner to stderr and flush so it appears before
 /// any progress bar.

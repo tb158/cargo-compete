@@ -10,14 +10,14 @@ use rand::Rng;
 /// Strategies whose rendered input is identical every run; safe to emit at most
 /// once (never repeated after full coverage).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum DeterministicStrategy {
+pub(super) enum DeterministicStrategy {
     AllMax,
     AllMin,
 }
 
 /// Strategies with a random element (repeatable after full corner coverage).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum RandomStrategy {
+pub(super) enum RandomStrategy {
     Random,
     /// Size variables forced to `k` (k = 1, 2, 3); non-size random.
     SmallSize(i64),
@@ -39,7 +39,7 @@ pub(crate) enum RandomStrategy {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum CaseStrategy {
+pub(super) enum CaseStrategy {
     Deterministic(DeterministicStrategy),
     Random(RandomStrategy),
 }
@@ -64,7 +64,7 @@ fn has_inter_array_constraints(spec: &ResolvedSpec) -> bool {
 /// number of *successfully rendered* cases, so a strategy that fails to
 /// realize for a given problem simply advances the stream instead of consuming
 /// an output slot.
-pub(crate) struct StrategyStream {
+pub(super) struct StrategyStream {
     prefix: Vec<CaseStrategy>,
     random_corners: Vec<RandomStrategy>,
     pos: usize,
@@ -74,7 +74,7 @@ pub(crate) struct StrategyStream {
 /// run (1 for `count < 10`, else 2, never exceeding `count`); the stream
 /// itself is unbounded. The corner pool is shuffled once here, mirroring the
 /// previous one-shot list build so seeded sequences are unchanged.
-pub(crate) fn strategy_stream(
+pub(super) fn strategy_stream(
     spec: &ResolvedSpec,
     count: u32,
     rng: &mut impl Rng,
@@ -144,7 +144,7 @@ pub(crate) fn strategy_stream(
 }
 
 impl StrategyStream {
-    pub(crate) fn next(&mut self, rng: &mut impl Rng) -> CaseStrategy {
+    pub(super) fn next(&mut self, rng: &mut impl Rng) -> CaseStrategy {
         if self.pos < self.prefix.len() {
             let s = self.prefix[self.pos].clone();
             self.pos += 1;
@@ -161,7 +161,7 @@ impl StrategyStream {
 
 /// Stable per-case name: plain random cases are `random{n}`, every corner /
 /// deterministic case is `corner{n}` (counters are 1-based, caller-owned).
-pub(crate) fn case_name(s: &CaseStrategy, corner: &mut u32, random: &mut u32) -> String {
+pub(super) fn case_name(s: &CaseStrategy, corner: &mut u32, random: &mut u32) -> String {
     match s {
         CaseStrategy::Random(RandomStrategy::Random) => {
             *random += 1;

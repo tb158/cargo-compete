@@ -11,7 +11,7 @@ pub(super) enum GenError {
 }
 
 pub(super) struct Budget {
-    pub(super) used: u128,
+    used: u128,
     limit: u128,
 }
 
@@ -35,5 +35,16 @@ impl Budget {
             )));
         }
         Ok(())
+    }
+
+    /// Snapshot the current usage so a failed sub-walk can be rolled back.
+    pub(super) fn mark(&self) -> u128 {
+        self.used
+    }
+
+    /// Discard usage charged since `mark`. `mark` must come from `Self::mark`.
+    pub(super) fn rollback_to(&mut self, mark: u128) {
+        debug_assert!(mark <= self.used);
+        self.used = mark;
     }
 }

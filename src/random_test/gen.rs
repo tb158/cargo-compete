@@ -16,7 +16,7 @@ use std::collections::HashMap;
 
 /// Decided values for the `sum_limit` denominators under the chosen strategy.
 #[derive(Debug, Clone, Default)]
-pub(crate) struct StructuralSizes {
+pub(super) struct StructuralSizes {
     /// `TestCases.count` variable name → decided `T`.
     pub test_cases: Option<(String, i64)>,
     /// jagged `Array.count` variable name → decided row count `n`.
@@ -76,7 +76,7 @@ pub(super) fn strategy_size_value(
 
 /// Decide the `sum_limit` denominator sizes (test-case count `T`, jagged row
 /// counts) under the chosen strategy.
-pub(crate) fn decide_structural_sizes(
+pub(super) fn decide_structural_sizes(
     spec: &ResolvedSpec,
     st: &CaseStrategy,
     rng: &mut impl Rng,
@@ -115,7 +115,7 @@ pub(crate) fn decide_structural_sizes(
 /// jagged row count, or `T`, or `1` when no such structure exists). This cap
 /// applies both to `Hi::SumLimited(L)` and to a `Hi::Fixed(n)` that carries a
 /// coexisting `sum_limit` (in which case the smaller of `n` and the cap wins).
-pub(crate) fn effective_lo_hi(
+pub(super) fn effective_lo_hi(
     name: &str,
     info: &VarInfo,
     sizes: &StructuralSizes,
@@ -151,7 +151,7 @@ pub(crate) fn effective_lo_hi(
 // ─── pure value primitives ────────────────────────────────────────────────────
 
 /// Uniform integer in `[lo, hi]` (inclusive); swaps a reversed range.
-pub(crate) fn gen_int(lo: i64, hi: i64, rng: &mut impl Rng) -> i64 {
+pub(super) fn gen_int(lo: i64, hi: i64, rng: &mut impl Rng) -> i64 {
     let (lo, hi) = if lo <= hi { (lo, hi) } else { (hi, lo) };
     if lo == hi {
         lo
@@ -179,7 +179,7 @@ fn uniform_vec(lo: i64, hi: i64, len: usize, rng: &mut impl Rng) -> Vec<i64> {
 /// Returns `None` when distinctness is infeasible for this case (value
 /// domain narrower than `len`, or too wide to index); the caller resamples
 /// the case rather than emitting a constraint-violating array.
-pub(crate) fn gen_int_array(
+pub(super) fn gen_int_array(
     st: &CaseStrategy,
     lo: i64,
     hi: i64,
@@ -311,7 +311,7 @@ pub(crate) fn gen_int_array(
 /// strategy is applied on the charset index domain `[0, charset.len()-1]`.
 /// `row_info = Some((row, total, phase))` makes `ArrayAltMaxMin` form a 2-D
 /// checkerboard across rows (shared `phase`, row-dependent parity).
-pub(crate) fn gen_string(
+pub(super) fn gen_string(
     st: &CaseStrategy,
     charset: &[char],
     len: usize,

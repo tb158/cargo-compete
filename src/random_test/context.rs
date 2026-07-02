@@ -2,13 +2,13 @@
 
 use std::collections::{HashMap, HashSet};
 
-pub(super) type Ctx = HashMap<String, i64>;
+pub(super) type ScalarCtx = HashMap<String, i64>;
 pub(super) type StrCtx = HashMap<String, String>;
 pub(super) type ArrayCtx = HashMap<String, Vec<i64>>;
 
 #[derive(Default)]
 pub(super) struct RenderContext {
-    pub(super) scalars: Ctx,
+    pub(super) scalars: ScalarCtx,
     pub(super) strings: StrCtx,
     pub(super) arrays: ArrayCtx,
 }
