@@ -1,6 +1,7 @@
 use crate::{
     config::{CargoCompeteConfig, CargoCompeteConfigNew},
     oj_api,
+    parse::annotate_ymls_with_format,
     shell::{ColorChoice, Shell},
     web::input_template::generate_template,
 };
@@ -107,6 +108,18 @@ pub fn run(opt: OptCompeteNew, ctx: crate::Context<'_>) -> anyhow::Result<()> {
                 shell,
             )?;
 
+            // Save test cases first so yml files exist before template generation
+            let yml_paths = crate::web::retrieve_testcases::save_test_cases(
+                &cargo_compete_dir,
+                &manifest_dir,
+                &cargo_compete_config.test_suite,
+                true,
+                outcome,
+                |_, index| vec![group.package_name() + "-" + &index.to_kebab_case()],
+                |_, index| vec![index.to_kebab_case()],
+                shell,
+            )?;
+
             if let Some(contest) = group.contest() {
                 crate::web::tasks_print_html::save_atcoder_tasks_print_if_missing(
                     contest,
@@ -114,6 +127,7 @@ pub fn run(opt: OptCompeteNew, ctx: crate::Context<'_>) -> anyhow::Result<()> {
                     &cookies_path,
                     shell,
                 )?;
+                annotate_ymls_with_format(&manifest_dir, &yml_paths, shell)?;
                 match generate_template(&manifest_dir, shell)? {
                     None => {}
                     Some(srcs) => {
@@ -125,20 +139,7 @@ pub fn run(opt: OptCompeteNew, ctx: crate::Context<'_>) -> anyhow::Result<()> {
                 };
             }
 
-            let file_paths = itertools::zip_eq(
-                src_paths,
-                crate::web::retrieve_testcases::save_test_cases(
-                    &cargo_compete_dir,
-                    &manifest_dir,
-                    &cargo_compete_config.test_suite,
-                    true,
-                    outcome,
-                    |_, index| vec![group.package_name() + "-" + &index.to_kebab_case()],
-                    |_, index| vec![index.to_kebab_case()],
-                    shell,
-                )?,
-            )
-            .collect::<Vec<_>>();
+            let file_paths = itertools::zip_eq(src_paths, yml_paths).collect::<Vec<_>>();
 
             if open {
                 crate::open::open(

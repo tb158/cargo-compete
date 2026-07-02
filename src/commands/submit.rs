@@ -35,6 +35,18 @@ pub struct OptCompeteSubmit {
     #[structopt(long)]
     pub no_test: bool,
 
+    /// Skip sample tests when running random or cross checks before submitting
+    #[structopt(long)]
+    pub no_sample: bool,
+
+    /// Run N random test cases after samples pass (default 5)
+    #[structopt(long, value_name("N"), min_values = 0, max_values = 1)]
+    pub random: Option<Vec<u32>>,
+
+    /// Cross-check against brute-force binary, optional case count (default 100)
+    #[structopt(long, value_name("PATH [N]"), min_values = 1, max_values = 2)]
+    pub cross: Option<Vec<String>>,
+
     /// Do not watch the submission
     #[structopt(long)]
     pub no_watch: bool,
@@ -89,6 +101,7 @@ pub struct OptCompeteSubmit {
 pub(crate) fn run(opt: OptCompeteSubmit, ctx: crate::Context<'_>) -> anyhow::Result<()> {
     let OptCompeteSubmit {
         no_test,
+        no_sample,
         no_watch,
         src,
         testcases,
@@ -98,8 +111,17 @@ pub(crate) fn run(opt: OptCompeteSubmit, ctx: crate::Context<'_>) -> anyhow::Res
         release,
         manifest_path,
         color,
+        random,
+        cross,
         name_or_alias,
     } = opt;
+
+    super::generated_check::validate_generated_check_options(
+        no_test,
+        no_sample,
+        random.is_some(),
+        cross.is_some(),
+    )?;
 
     let crate::Context {
         cwd,
@@ -170,6 +192,20 @@ pub(crate) fn run(opt: OptCompeteSubmit, ctx: crate::Context<'_>) -> anyhow::Res
         ))?;
     }
 
+    let mut extra_args: Vec<std::ffi::OsString> = vec![];
+    if let Some(v) = &random {
+        extra_args.push("--random".into());
+        if let Some(n) = v.first() {
+            extra_args.push(n.to_string().into());
+        }
+    }
+    if let Some(v) = &cross {
+        extra_args.push("--cross".into());
+        for arg in v {
+            extra_args.push(arg.into());
+        }
+    }
+
     if !no_test {
         crate::process::process(env::current_exe()?)
             .args(&["compete", "t", "--src"])
@@ -189,6 +225,8 @@ pub(crate) fn run(opt: OptCompeteSubmit, ctx: crate::Context<'_>) -> anyhow::Res
             })
             .args(&["--manifest-path".as_ref(), member.manifest_path.as_os_str()])
             .args(&["--color", &color.to_string()])
+            .args(if no_sample { &["--no-sample"] } else { &[] })
+            .args(&extra_args)
             .cwd(&metadata.workspace_root)
             .exec_with_shell_status(shell)?;
     }

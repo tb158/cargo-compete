@@ -66,6 +66,27 @@ impl Shell {
         stderr.flush()
     }
 
+    pub(crate) fn err_label(
+        &mut self,
+        color: Color,
+        label: &str,
+        msg: impl fmt::Display,
+    ) -> io::Result<()> {
+        if self.needs_clear {
+            self.err_erase_line();
+        }
+
+        let stderr = self.err();
+
+        stderr.set_color(color_spec!(Bold, Fg(color)))?;
+        write!(stderr, "{label}:")?;
+        stderr.reset()?;
+
+        writeln!(stderr, " {msg}")?;
+
+        stderr.flush()
+    }
+
     pub(crate) fn status(
         &mut self,
         status: impl fmt::Display,

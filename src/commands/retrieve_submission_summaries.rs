@@ -77,7 +77,7 @@ pub(crate) fn run(
     {
         if bin_name_or_alias
             .as_ref()
-            .map_or(true, |s| [bin_name, bin_alias].contains(&s))
+            .is_none_or(|s| [bin_name, bin_alias].contains(&s))
         {
             match PlatformKind::from_url(url).with_context(|| "unsupported platform")? {
                 PlatformKind::Atcoder => {

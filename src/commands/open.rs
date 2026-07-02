@@ -77,12 +77,12 @@ pub(crate) fn run(opt: OptCompeteOpen, ctx: crate::Context<'_>) -> anyhow::Resul
     for (i, (name, PackageMetadataCargoCompeteBinExample { alias, problem })) in itertools::chain(
         package_metadata.bin.iter().filter(
             |&(name, PackageMetadataCargoCompeteBinExample { alias, .. })| {
-                bin.map_or(true, |s| s.contains(name) || s.contains(alias))
+                bin.is_none_or(|s| s.contains(name) || s.contains(alias))
             },
         ),
         package_metadata.example.iter().filter(
             |&(name, PackageMetadataCargoCompeteBinExample { alias, .. })| {
-                example.map_or(true, |s| s.contains(name) || s.contains(alias))
+                example.is_none_or(|s| s.contains(name) || s.contains(alias))
             },
         ),
     )

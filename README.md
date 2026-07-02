@@ -7,7 +7,7 @@
 [![Crates.io](https://img.shields.io/crates/l/cargo-compete.svg)](https://crates.io/crates/cargo-compete)
 [![Join the chat at https://gitter.im/cargo-compete/community](https://badges.gitter.im/cargo-compete/community.svg)](https://gitter.im/cargo-compete/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-[日本語](https://github.com/qryxip/cargo-compete/blob/master/README-ja.md)
+[日本語](README-ja.md)
 
 A Cargo subcommand for competitive programming.
 
@@ -20,15 +20,16 @@ Other websites are available via [online-judge-tools/api-client](https://github.
 - (Automatically) register in a contest,
 - Retrieves sample/system test cases, and save them as YAML files,
 - Test your code for the YAML files,
+- Random tests (AtCoder only),
 - Submit your code,
 - Watch your submissions. (available for only AtCoder)
 
-|                | Registeration          | Sample Test Cases             | System Test Cases             | Submiting                     | Watching Submissions    | Submission Details |
-| :------------: | :--------------------: | :---------------------------: | :---------------------------: | :---------------------------: | :---------------------: | :----------------: |
-| AtCoder        | :heavy_check_mark:     | :heavy_check_mark:            | :heavy_check_mark:            | :heavy_check_mark:            | :grey_question:         | :x:                |
-| Codeforces     | :x:                    | :heavy_check_mark:            | N/A                           | :heavy_check_mark:            | :x:                     | :x:                |
-| yukicoder      | N/A                    | :heavy_check_mark:            | :heavy_check_mark:            | :heavy_check_mark:            | :x:                     | :x:                |
-| Other websites | :x:                    | Depends on online-judge-tools | Depends on online-judge-tools | Depends on online-judge-tools | :x:                     | :x:                |
+|                | Registeration          | Sample Test Cases             | System Test Cases             | Random Tests                  | Submiting                     | Watching Submissions    | Submission Details |
+| :------------: | :--------------------: | :---------------------------: | :---------------------------: | :---------------------------: | :---------------------------: | :---------------------: | :----------------: |
+| AtCoder        | :heavy_check_mark:     | :heavy_check_mark:            | :heavy_check_mark:            | :heavy_check_mark:            | :heavy_check_mark:            | :grey_question:         | :x:                |
+| Codeforces     | :heavy_check_mark:     | :heavy_check_mark:            | N/A                           | :x:                           | :heavy_check_mark:            | :x:                     | :x:                |
+| yukicoder      | N/A                    | :heavy_check_mark:            | :heavy_check_mark:            | :x:                           | :heavy_check_mark:            | :x:                     | :x:                |
+| Other websites | :x:                    | Depends on online-judge-tools | Depends on online-judge-tools | :x:                           | Depends on online-judge-tools | :x:                     | :x:                |
 
 ## Installation
 
@@ -77,7 +78,7 @@ It generates the following files.
 
 ### `cargo compete migrate cargo-atcoder`
 
-See [the section in the Japanese readme](https://github.com/qryxip/cargo-compete/blob/master/README-ja.md#cargo-compete-migrate-cargo-atcoder).
+See [the section in the Japanese readme](README-ja.md#cargo-compete-migrate-cargo-atcoder).
 
 ### `cargo compete login`
 
@@ -107,6 +108,12 @@ And you can also open the source files and the test cases in your browser by tes
 If you forget to add `--open`, `cd` to the generated package and run [`cargo compete open`](#cargo-compete-open).
 
 ![Record](https://user-images.githubusercontent.com/14125495/91647287-1b29b900-ea94-11ea-9053-43e25c77706f.gif)
+
+For AtCoder, cargo-compete mechanically generates `input!` macro fields in submission source files as far as they can be read from the retrieved problem statements.
+
+> **Note**
+>
+> This complies with [AtCoder Rules against Generative AI - 20251003 Version](https://info.atcoder.jp/entry/llm-rules-en), and can be used in ABC, ARC, and AGC. For other contests, check the contest-specific rules before using it.
 
 ### `cargo compete add`
 
@@ -211,6 +218,21 @@ Runs tests.
 
 You don't have to run this command beforehand, because the tests are run in [the `submit` command](#cargo-compete-submit).
 
+For AtCoder, you can also run random tests and cross-checks with a brute-force solution using the `random_test` section saved in the YAML file when retrieving the problem. After the sample tests pass, cargo-compete additionally runs generated inputs from the constraints.
+
+```console
+$ cargo compete test a --random
+$ cargo compete test a --random 50 --no-sample
+$ cargo compete test a --cross "a copy.rs"
+```
+
+If you omit the count, 5 cases are run. The main use case is checking that the solution does not TLE on maximum-size cases generated by the MaxSize strategy. Edit the YAML file if you want to tighten constraints. See [the random test / cross-check requirements](docs/random-test-requirements.md) for details and supported patterns.
+
+> **Note**
+>
+> - To make sure a MaxSize case is included, run about 20 or more cases.
+> - This complies with [AtCoder Rules against Generative AI - 20251003 Version](https://info.atcoder.jp/entry/llm-rules-en), and can be used in ABC, ARC, and AGC. For other contests, check the contest-specific rules before using it.
+
 ### `cargo compete submit`
 
 Submits your code.
@@ -225,15 +247,15 @@ You can convert code with a tool such as [cargo-equip](https://github.com/qryxip
 ```toml
 [submit]
 kind = "command"
-args = ["cargo", "+1.70.0", "equip", "--exclude-atcoder-202301-crates", "--remove", "docs", "--minify", "libs", "--bin", "{{ bin_name }}"]
-language_id = "5054"
+args = ["cargo", "equip", "--exclude-atcoder-crates", "--resolve-cfgs", "--remove", "docs", "--minify", "libs", "--rustfmt", "--check", "--bin", "{{ bin_name }}"]
+language_id = "6088"
 ```
 
 ```toml
 [submit]
 kind = "command"
 args = ["cargo", "executable-payload", "--bin", "{{ bin_name }}"]
-language_id = "5054"
+language_id = "6088"
 ```
 
 ## Configuration
@@ -248,7 +270,7 @@ Here is an example for `compete.toml`.
 # - `manifest_dir`: Package directory
 # - `contest`:      Contest ID (e.g. "abc100")
 # - `bin_name`:     Name of a `bin` target (e.g. "abc100-a")
-# - `bin_alias`:    "Alias" for a `bin` target defined in `pacakge.metadata.cargo-compete` (e.g. "a")
+# - `bin_alias`:    "Alias" for a `bin` target defined in `package.metadata.cargo-compete` (e.g. "a")
 # - `problem`:      Alias for `bin_alias` (deprecated)
 #
 # Additional filters:
@@ -272,7 +294,7 @@ fn main() {
 
 [template.new]
 # `edition` for `Cargo.toml`.
-edition = "2018"
+edition = "2024"
 # `profile` for `Cargo.toml`.
 #
 # By setting this, you can run tests with `opt-level=3` while enabling `debug-assertions` and `overflow-checks`.
@@ -281,45 +303,14 @@ edition = "2018"
 #opt-level = 3
 #'''
 dependencies = '''
-num = "=0.2.1"
-num-bigint = "=0.2.6"
-num-complex = "=0.2.4"
-num-integer = "=0.1.42"
-num-iter = "=0.1.40"
-num-rational = "=0.2.4"
-num-traits = "=0.2.11"
-num-derive = "=0.3.0"
-ndarray = "=0.13.0"
-nalgebra = "=0.20.0"
-alga = "=0.9.3"
-libm = "=0.2.1"
-rand = { version = "=0.7.3", features = ["small_rng"] }
-getrandom = "=0.1.14"
-rand_chacha = "=0.2.2"
-rand_core = "=0.5.1"
-rand_hc = "=0.2.0"
-rand_pcg = "=0.2.1"
-rand_distr = "=0.2.2"
-petgraph = "=0.5.0"
-indexmap = "=1.3.2"
-regex = "=1.3.6"
-lazy_static = "=1.4.0"
-ordered-float = "=1.0.2"
-ascii = "=1.0.0"
-permutohedron = "=0.2.4"
-superslice = "=1.0.0"
-itertools = "=0.9.0"
-itertools-num = "=0.1.3"
-maplit = "=1.0.2"
-either = "=1.5.3"
-im-rc = "=14.3.0"
-fixedbitset = "=0.2.0"
-bitset-fixed = "=0.1.0"
-proconio = { version = "=0.3.6", features = ["derive"] }
-text_io = "=0.1.8"
-whiteread = "=0.5.0"
-rustc-hash = "=1.1.0"
-smallvec = "=1.2.0"
+# Default template used when `cargo compete init atcoder` is configured to use
+# AtCoder crates normally. `cargo compete new` copies this `dependencies`
+# content into the generated Cargo.toml; edit it as needed.
+# See `resources/atcoder-deps.toml` in this repository for the complete list.
+proconio = { version = "=0.5.0", features = ["derive"] }
+ac-library-rs = "=0.2.0"
+itertools = "=0.14.0"
+rand = "=0.9.2"
 '''
 dev-dependencies = '''
 #atcoder-202004-lock = { git = "https://github.com/qryxip/atcoder-202004-lock" }
@@ -378,11 +369,11 @@ toolchain = "1.42.0"
 [submit]
 kind = "file"
 path = "{{ src_path }}"
-language_id = "5054"
+language_id = "6088"
 #[submit]
 #kind = "command"
-#args = ["cargo", "+1.70.0", "equip", "--exclude-atcoder-202301-crates", "--remove", "docs", "--minify", "libs", "--bin", "{{ bin_name }}"]
-#language_id = "5054"
+#args = ["cargo", "equip", "--exclude-atcoder-crates", "--resolve-cfgs", "--remove", "docs", "--minify", "libs", "--rustfmt", "--check", "--bin", "{{ bin_name }}"]
+#language_id = "6088"
 ```
 
 And here is an example for `package.metadata` in `Cargo.toml`.
@@ -392,7 +383,7 @@ And here is an example for `package.metadata` in `Cargo.toml`.
 name = "practice"
 version = "0.1.0"
 authors = ["Ryo Yamashita <qryxip@gmail.com>"]
-edition = "2018"
+edition = "2024"
 
 [package.metadata.cargo-compete.bin]
 practice-a = { alias = "a", problem = "https://atcoder.jp/contests/practice/tasks/practice_1" }
@@ -409,45 +400,10 @@ name = "practice-b"
 path = "src/bin/b.rs"
 
 [dependencies]
-num = "=0.2.1"
-num-bigint = "=0.2.6"
-num-complex = "=0.2.4"
-num-integer = "=0.1.42"
-num-iter = "=0.1.40"
-num-rational = "=0.2.4"
-num-traits = "=0.2.11"
-num-derive = "=0.3.0"
-ndarray = "=0.13.0"
-nalgebra = "=0.20.0"
-alga = "=0.9.3"
-libm = "=0.2.1"
-rand = { version = "=0.7.3", features = ["small_rng"] }
-getrandom = "=0.1.14"
-rand_chacha = "=0.2.2"
-rand_core = "=0.5.1"
-rand_hc = "=0.2.0"
-rand_pcg = "=0.2.1"
-rand_distr = "=0.2.2"
-petgraph = "=0.5.0"
-indexmap = "=1.3.2"
-regex = "=1.3.6"
-lazy_static = "=1.4.0"
-ordered-float = "=1.0.2"
-ascii = "=1.0.0"
-permutohedron = "=0.2.4"
-superslice = "=1.0.0"
-itertools = "=0.9.0"
-itertools-num = "=0.1.3"
-maplit = "=1.0.2"
-either = "=1.5.3"
-im-rc = "=14.3.0"
-fixedbitset = "=0.2.0"
-bitset-fixed = "=0.1.0"
-proconio = { version = "=0.3.6", features = ["derive"] }
-text_io = "=0.1.8"
-whiteread = "=0.5.0"
-rustc-hash = "=1.1.0"
-smallvec = "=1.2.0"
+proconio = { version = "=0.5.0", features = ["derive"] }
+ac-library-rs = "=0.2.0"
+itertools = "=0.14.0"
+rand = "=0.9.2"
 
 [dev-dependencies]
 ```
@@ -608,7 +564,7 @@ An [untagged ADT](https://serde.rs/enum-representations.html#untagged).
 
 Compares whole strings.
 
-### `Match::SplitWhiteSpace` = `"SplitWhitespace"`
+### `Match::SplitWhitespace` = `"SplitWhitespace"`
 
 Compares [words splitted by whitespace](https://doc.rust-lang.org/stable/std/primitive.str.html#method.split_whitespace).
 
@@ -907,7 +863,7 @@ aplusb = { problem = "https://judge.yosupo.jp/problem/aplusb" }
 
 ## Compared with cargo-atcoder
 
-See [the section in the Japanese readme](https://github.com/qryxip/cargo-compete/blob/master/README-ja.md#cargo-atcoder%E3%81%A8%E3%81%AE%E5%AF%BE%E5%BF%9C).
+See [the section in the Japanese readme](README-ja.md#cargo-atcoder%E3%81%A8%E3%81%AE%E5%AF%BE%E5%BF%9C).
 
 ## License
 

@@ -38,6 +38,9 @@ fn exit_with_error(err: anyhow::Error, mut wtr: impl WriteColor) -> ! {
     if let Some(err) = err.downcast_ref::<clap::Error>() {
         err.exit();
     }
+    if cargo_compete::is_interrupted_error(&err) {
+        std::process::exit(130);
+    }
 
     let mut bold_red = ColorSpec::new();
     bold_red

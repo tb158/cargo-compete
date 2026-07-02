@@ -127,14 +127,14 @@ pub(crate) fn dl_for_existing_package(
             |&(name, PackageMetadataCargoCompeteBinExample { alias, .. })| {
                 bin_name_aliases
                     .as_mut()
-                    .map_or(true, |ss| ss.remove(name) || ss.remove(alias))
+                    .is_none_or(|ss| ss.remove(name) || ss.remove(alias))
             },
         ),
         package_metadata_example.iter().filter(
             |&(name, PackageMetadataCargoCompeteBinExample { alias, .. })| {
                 example_name_aliases
                     .as_mut()
-                    .map_or(true, |ss| ss.remove(name) || ss.remove(alias))
+                    .is_none_or(|ss| ss.remove(name) || ss.remove(alias))
             },
         ),
     ) {

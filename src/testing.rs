@@ -8,7 +8,7 @@ use liquid::object;
 use maplit::btreemap;
 use snowchains_core::{
     judge::CommandExpression,
-    testsuite::{PartialBatchTestCase, TestSuite},
+    testsuite::{BatchTestCase, PartialBatchTestCase, TestSuite},
     web::PlatformKind,
 };
 use std::{
@@ -32,6 +32,16 @@ pub(crate) struct Args<'a> {
     pub(crate) display_limit: Size,
     pub(crate) cookies_path: &'a Path,
     pub(crate) shell: &'a mut Shell,
+    /// Skip sample tests and go directly to random/cross tests.
+    pub(crate) no_sample: bool,
+    /// Number of random cases to run after samples pass (None = skip)
+    pub(crate) random_count: Option<u32>,
+    /// Pre-built cross (brute-force) binary artifact path
+    pub(crate) cross_artifact: Option<Utf8PathBuf>,
+    /// Number of cross-check cases to run (None = skip)
+    pub(crate) cross_count: Option<u32>,
+    /// File stem of the cross binary source (display only)
+    pub(crate) cross_bin_alias: Option<String>,
 }
 
 pub(crate) fn test(args: Args<'_>) -> anyhow::Result<()> {
@@ -48,6 +58,11 @@ pub(crate) fn test(args: Args<'_>) -> anyhow::Result<()> {
         display_limit,
         cookies_path,
         shell,
+        no_sample,
+        random_count,
+        cross_artifact,
+        cross_count,
+        cross_bin_alias,
     } = args;
 
     let test_suite_path = test_suite_path(
@@ -170,23 +185,101 @@ pub(crate) fn test(args: Args<'_>) -> anyhow::Result<()> {
         artifact,
     );
 
-    let outcome = snowchains_core::judge::judge(
-        shell.progress_draw_target(),
-        tokio::signal::ctrl_c,
-        &CommandExpression {
-            program: artifact.into(),
-            args: vec![],
-            cwd: metadata.workspace_root.clone().into(),
-            env: btreemap!(),
-        },
-        &test_cases,
-    )?;
-
     let display_limit = display_limit.into::<Byte>().value().saturating_as();
 
-    writeln!(shell.err())?;
-    outcome.print_pretty(shell.err(), Some(display_limit))?;
-    outcome.error_on_fail()
+    let sample_result = if !no_sample {
+        let outcome = snowchains_core::judge::judge(
+            shell.progress_draw_target(),
+            tokio::signal::ctrl_c,
+            &CommandExpression {
+                program: artifact.clone().into(),
+                args: vec![],
+                cwd: metadata.workspace_root.clone().into(),
+                env: btreemap!(),
+            },
+            &test_cases,
+        )?;
+        writeln!(shell.err())?;
+        outcome.print_pretty(shell.err(), Some(display_limit))?;
+        outcome.error_on_fail()
+    } else {
+        Ok(())
+    };
+
+    if sample_result.is_ok() && random_count.is_some() {
+        if matches!(
+            PlatformKind::from_url(problem_url),
+            Ok(PlatformKind::Atcoder)
+        ) {
+            let timelimit = match crate::fs::read_yaml(&test_suite_path)? {
+                TestSuite::Batch(s) => s.timelimit,
+                _ => None,
+            };
+            crate::random_test::run_random_tests(crate::random_test::RandomTestArgs {
+                artifact: artifact.as_std_path(),
+                yml_path: test_suite_path.as_path(),
+                count: random_count.unwrap_or(5),
+                timelimit,
+                display_limit,
+                cwd: metadata.workspace_root.as_std_path(),
+                shell,
+            })?;
+        } else {
+            shell.warn("random tests are only supported for AtCoder problems")?;
+        }
+    }
+
+    if sample_result.is_ok() {
+        if let (Some(cross_artifact), Some(cross_count)) = (&cross_artifact, cross_count) {
+            // cross binary sample tests
+            if !no_sample {
+                let cross_cases: Vec<BatchTestCase> = test_cases
+                    .iter()
+                    .map(|tc| BatchTestCase {
+                        timelimit: None,
+                        ..tc.clone()
+                    })
+                    .collect();
+                crate::random_test::write_section_banner(
+                    shell.err(),
+                    "cross-check binary sample tests",
+                )?;
+                let cross_sample = snowchains_core::judge::judge(
+                    shell.progress_draw_target(),
+                    tokio::signal::ctrl_c,
+                    &CommandExpression {
+                        program: cross_artifact.as_std_path().into(),
+                        args: vec![],
+                        cwd: metadata.workspace_root.clone().into(),
+                        env: btreemap!(),
+                    },
+                    &cross_cases,
+                )?;
+                writeln!(shell.err())?;
+                cross_sample.print_pretty(shell.err(), Some(display_limit))?;
+                cross_sample.error_on_fail()?;
+            }
+            // cross-check random tests
+            let timelimit = match crate::fs::read_yaml(&test_suite_path)? {
+                TestSuite::Batch(s) => s.timelimit,
+                _ => None,
+            };
+            crate::random_test::run_cross_check(crate::random_test::CrossCheckArgs {
+                main_artifact: artifact.as_std_path(),
+                cross_artifact: cross_artifact.as_std_path(),
+                yml_path: test_suite_path.as_path(),
+                count: cross_count,
+                timelimit,
+                display_limit,
+                cwd: metadata.workspace_root.as_std_path(),
+                main_bin_name: &bin.name,
+                cross_bin_alias: cross_bin_alias.as_deref().unwrap_or(""),
+                shell,
+            })?;
+        }
+    }
+
+    sample_result
 }
 
 pub(crate) fn test_suite_path(

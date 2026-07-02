@@ -187,7 +187,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-compete"
-version = "0.11.0"
+version = "0.11.1"
 dependencies = [
  "anyhow",
  "atty",
@@ -219,6 +219,7 @@ dependencies = [
  "percent-encoding",
  "pretty_assertions",
  "prettytable-rs",
+ "rand 0.8.5",
  "regex",
  "reqwest",
  "rpassword",
@@ -230,6 +231,7 @@ dependencies = [
  "serde_with",
  "serde_yaml",
  "shell-escape",
+ "signal-hook",
  "snowchains_core",
  "structopt",
  "strum",
@@ -2669,6 +2671,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
+name = "signal-hook"
+version = "0.3.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d881a16cf4426aa584979d30bd82cb33429027e42122b169753d6ef1085ed6e2"
+dependencies = [
+ "libc",
+ "signal-hook-registry",
+]
+
+[[package]]
 name = "signal-hook-registry"
 version = "1.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2711,8 +2723,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 [[package]]
 name = "snowchains_core"
 version = "0.13.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07ecb9be8378d7b7ae981c8050684361fe12639529dba8abc904848b9afec595"
+source = "git+https://github.com/tb158/snowchains?branch=develop#0868f905b3fb76fd9b7abfe12349eae8c518500e"
 dependencies = [
  "anyhow",
  "camino",
