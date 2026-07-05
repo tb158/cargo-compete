@@ -2,6 +2,9 @@
 //!
 //! Renders `proconio::input!` declarations from `FormatBlock` values stored in
 //! testcase yml files. HTML parsing lives in `crate::parse`.
+//!
+//! Note: We do not emit `#[fastout]` or import `proconio::fastout` because the
+//! `fastout` attribute interferes with rust-analyzer's autocompletion.
 
 use crate::parse::{read_random_test_section, snake, FormatBlock, VarConstraint, VarType};
 use crate::shell::Shell;
@@ -255,12 +258,11 @@ fn render_section_from_format_blocks(
 
 fn push_use_line(out: &mut Vec<String>, needs_chars: bool) {
     if needs_chars {
-        out.push("use proconio::{input, fastout, marker::Chars};".to_string());
+        out.push("use proconio::{input, marker::Chars};".to_string());
     } else {
-        out.push("use proconio::{input, fastout};".to_string());
+        out.push("use proconio::input;".to_string());
     }
     out.push(String::new());
-    out.push("#[fastout]".to_string());
 }
 
 // ─── generate_template ────────────────────────────────────────────────────────

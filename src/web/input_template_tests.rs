@@ -271,7 +271,7 @@ fn format_blocks_str_var_uses_chars() {
     );
     let rendered = render_section_from_format_blocks(&blocks, &vars).unwrap();
     assert!(
-        rendered.contains("use proconio::{input, fastout, marker::Chars};"),
+        rendered.contains("use proconio::{input, marker::Chars};"),
         "rendered template should import Chars marker. got:\n{}",
         rendered,
     );
@@ -434,7 +434,7 @@ fn render_queries_with_chars_branch_imports_chars() {
     ];
     let rendered = render_section_from_format_blocks(&blocks, &vars).unwrap();
     assert!(
-        rendered.contains("use proconio::{input, fastout, marker::Chars};"),
+        rendered.contains("use proconio::{input, marker::Chars};"),
         "queries-with-Chars rendering should import Chars marker. got:\n{}",
         rendered,
     );
@@ -480,7 +480,7 @@ fn annotate_and_generate_abc450_a() {
         .unwrap();
     let src_path = contest_dir.join("src").join("bin").join("a.rs");
     let content = templates.get(&src_path).expect("a.rs template missing");
-    assert!(content.contains("use proconio::{input, fastout};"));
+    assert!(content.contains("use proconio::input;"));
     assert!(content.contains("n: usize"));
     assert!(content.contains("fn main()"));
 
