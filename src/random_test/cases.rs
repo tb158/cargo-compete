@@ -39,8 +39,9 @@ pub(super) enum GenerateOutcome {
 }
 
 /// Read the `random_test:` section and generate cases. `Ok(None)` means there
-/// is no `random_test:` section (e.g. a non-AtCoder problem) and the caller
-/// should skip silently. The RNG is seeded from entropy.
+/// is no `random_test:` section in the yml; the caller warns and skips
+/// (random tests only run when explicitly requested). The RNG is seeded from
+/// entropy.
 pub(super) fn generate_cases(
     yml_path: &Utf8Path,
     count: u32,

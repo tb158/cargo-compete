@@ -37,7 +37,12 @@ fn load_generated_cases(
     shell: &mut Shell,
 ) -> anyhow::Result<Option<(NamedCases, Vec<String>)>> {
     let (cases, skipped) = match generate_cases(yml_path, count)? {
-        None => return Ok(None),
+        None => {
+            shell.warn(format!(
+                "no `random_test:` section in {yml_path}; skipping random tests"
+            ))?;
+            return Ok(None);
+        }
         Some(GenerateOutcome::Aborted { reasons }) => {
             for reason in reasons {
                 shell.warn(reason)?;
