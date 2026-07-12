@@ -14,11 +14,14 @@ use prettytable::{
     format::{FormatBuilder, LinePosition, LineSeparator},
     row, Row, Table,
 };
-use snowchains_core::web::{
-    Atcoder, AtcoderSubmitCredentials, AtcoderWatchSubmissionsCredentials,
-    AtcoderWatchSubmissionsTarget, Codeforces, CodeforcesSubmitCredentials, CookieStorage,
-    PlatformKind, ProblemInContest, Submit, WatchSubmissions, Yukicoder,
-    YukicoderSubmitCredentials, YukicoderSubmitTarget,
+use snowchains_core::{
+    testsuite::TestSuite,
+    web::{
+        Atcoder, AtcoderSubmitCredentials, AtcoderWatchSubmissionsCredentials,
+        AtcoderWatchSubmissionsTarget, Codeforces, CodeforcesSubmitCredentials, CookieStorage,
+        PlatformKind, ProblemInContest, Submit, WatchSubmissions, Yukicoder,
+        YukicoderSubmitCredentials, YukicoderSubmitTarget,
+    },
 };
 use std::{borrow::BorrowMut as _, cell::RefCell, env, io, iter, path::PathBuf};
 use structopt::StructOpt;
@@ -50,6 +53,10 @@ pub struct OptCompeteSubmit {
     /// Do not watch the submission
     #[structopt(long)]
     pub no_watch: bool,
+
+    /// Skip confirmation prompts (e.g. submitting an `Interactive` problem)
+    #[structopt(long, short = "y")]
+    pub yes: bool,
 
     /// Path to the source code
     #[structopt(
@@ -103,6 +110,7 @@ pub(crate) fn run(opt: OptCompeteSubmit, ctx: crate::Context<'_>) -> anyhow::Res
         no_test,
         no_sample,
         no_watch,
+        yes,
         src,
         testcases,
         display_limit,
@@ -190,6 +198,34 @@ pub(crate) fn run(opt: OptCompeteSubmit, ctx: crate::Context<'_>) -> anyhow::Res
                 Backend::Oj => "an inferred value",
             },
         ))?;
+    }
+
+    // Interactive problems have no local test cases, so the pre-submit test
+    // passes vacuously. Require explicit confirmation before submitting.
+    let test_suite_path = crate::testing::test_suite_path(
+        &metadata.workspace_root,
+        member.manifest_dir(),
+        &cargo_compete_config.test_suite,
+        &bin.name,
+        &package_metadata_bin.alias,
+        &package_metadata_bin.problem,
+        shell,
+    )?;
+    if test_suite_path.exists()
+        && matches!(
+            crate::fs::read_yaml(&test_suite_path)?,
+            TestSuite::Interactive(_)
+        )
+    {
+        shell.warn("this is an `Interactive` problem, for which local tests are not supported")?;
+        if yes {
+            shell.warn("`--yes` is specified. skipping confirmation")?;
+        } else {
+            let reply = shell.read_reply("Submit anyway? (y/N): ")?;
+            if !matches!(&*reply.trim().to_lowercase(), "y" | "yes") {
+                bail!("aborted");
+            }
+        }
     }
 
     let mut extra_args: Vec<std::ffi::OsString> = vec![];
