@@ -235,7 +235,6 @@ fn render_section_from_format_blocks(
             out.push("        /* TODO: per-query fields */".to_string());
         }
 
-        out.push("        /* process query */".to_string());
         out.push("    }".to_string());
         out.push("}".to_string());
         return Ok(out.join("\n"));
