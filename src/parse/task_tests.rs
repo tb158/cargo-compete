@@ -394,6 +394,26 @@ fn abc442_e_full_constraints() {
     );
 }
 
+// ─── abc471/f: digit-only Chars array ─────────────────────────────────────────
+
+#[test]
+fn abc471_f_digit_only_strings() {
+    let Some(section) = load_section("abc471", 'f') else {
+        return;
+    };
+
+    let s = section.vars.get("s").expect("s");
+    assert_eq!(s.r#type, VarType::Chars);
+    assert_eq!(
+        s.values.as_ref(),
+        Some(&(0..=9).map(|digit| digit.to_string()).collect::<Vec<_>>())
+    );
+    assert_eq!(s.len, Some(BoundRepr::Expr("|s|".into())));
+
+    let len = section.vars.get("|s|").expect("|s|");
+    assert_eq!(len.range, lit_range(1, 10));
+}
+
 // ─── abc441/b: Chars + len direct reference ───────────────────────────────────
 
 #[test]

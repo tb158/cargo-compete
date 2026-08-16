@@ -238,7 +238,7 @@ fn determine_charset(item: &str) -> Option<Vec<char>> {
         Some(('a'..='z').collect())
     } else if item.contains("英大文字") {
         Some(('A'..='Z').collect())
-    } else if item.contains("数字列") {
+    } else if item.contains("数字列") || item.contains("数字のみからなる") {
         Some(('0'..='9').collect())
     } else if item.matches("<code>").count() >= 2 {
         let code_re = Regex::new(r"<code>(.)</code>").unwrap();

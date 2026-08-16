@@ -271,6 +271,15 @@ fn string_with_lower_alpha() {
 }
 
 #[test]
+fn string_consisting_only_of_digits() {
+    let p = parse_constraints(&["S_i は数字のみからなる長さ 1 以上 10 以下の文字列".to_string()]);
+    let s = p.str_vars.get("s").expect("s");
+    assert_eq!(s.charset, ('0'..='9').collect::<Vec<_>>());
+    assert_eq!(s.len_lo, Some(b_lit(1)));
+    assert_eq!(s.len_hi, Some(b_lit(10)));
+}
+
+#[test]
 fn string_decl_applies_to_all_extracted_variables() {
     let p = parse_constraints(&["S, T は英小文字からなる長さ N の文字列".to_string()]);
     assert!(p.str_vars.contains_key("s"));
