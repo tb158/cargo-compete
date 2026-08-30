@@ -13,7 +13,7 @@ static ATCODER_RUST_EDITION: &str = "2024";
 static CODEFORCES_RUST_EDITION: &str = "2021";
 static YUKICODER_RUST_EDITION: &str = "2018";
 
-static ATCODER_RUST_VERSION: &str = "1.70.0";
+static ATCODER_RUST_VERSION: &str = "1.89.0";
 static CODEFORCES_RUST_VERSION: &str = "1.57.0";
 static YUKICODER_RUST_VERSION: &str = "1.53.0";
 
