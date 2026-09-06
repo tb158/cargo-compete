@@ -17,7 +17,7 @@ mod web;
 
 use crate::{
     commands::{
-        add::OptCompeteAdd, init::OptCompeteInit, login::OptCompeteLogin,
+        add::OptCompeteAdd, dup::OptCompeteDup, init::OptCompeteInit, login::OptCompeteLogin,
         migrate_cargo_atcoder::OptCompeteMigrateCargoAtcoder, new::OptCompeteNew,
         open::OptCompeteOpen, participate::OptCompeteParticipate,
         retrieve_submission_summaries::OptCompeteRetrieveSubmissionSummaries,
@@ -82,6 +82,10 @@ pub enum OptCompete {
     #[structopt(author, visible_alias("o"))]
     Open(OptCompeteOpen),
 
+    /// Copy a solution to `src/bin/<alias>_cross.rs` for cross-checking
+    #[structopt(author)]
+    Dup(OptCompeteDup),
+
     /// Test your code
     #[structopt(author, visible_alias("t"))]
     Test(OptCompeteTest),
@@ -142,6 +146,7 @@ pub fn run(opt: OptCompete, ctx: Context<'_>) -> anyhow::Result<()> {
             commands::watch_submissions::run(opt, ctx)
         }
         OptCompete::Open(opt) => commands::open::run(opt, ctx),
+        OptCompete::Dup(opt) => commands::dup::run(opt, ctx),
         OptCompete::Test(opt) => commands::test::run(opt, ctx),
         OptCompete::Submit(opt) => commands::submit::run(opt, ctx),
     }

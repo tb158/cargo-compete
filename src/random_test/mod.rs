@@ -5,7 +5,6 @@
 //! the resulting yml back and never re-parses HTML.
 
 mod budget;
-mod cargo_reg;
 mod cases;
 mod context;
 mod emitter;
@@ -17,7 +16,6 @@ mod runner;
 mod spec;
 mod strategy;
 
-pub(crate) use cargo_reg::ensure_cross_bin_registered;
 pub(crate) use runner::{run_cross_check, run_random_tests, CrossCheckArgs, RandomTestArgs};
 
 /// Cross-cutting safety ceiling on generated input elements.

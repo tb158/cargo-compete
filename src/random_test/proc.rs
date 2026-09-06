@@ -7,14 +7,21 @@ use std::{path::Path, time::Duration};
 #[derive(Debug)]
 pub(super) enum RunResult {
     Ok(String),
-    RuntimeError(i32),
+    RuntimeError {
+        /// Human-readable termination status, e.g. `exit status: 101` or
+        /// `signal: 6 (SIGABRT)`. A signalled process has no exit code, so the
+        /// code alone cannot describe how the run ended.
+        status: String,
+        /// Captured `stderr`, trimmed. Panic messages land here, and without
+        /// them a cross-check failure is unattributable.
+        stderr: String,
+    },
     TimeLimitExceeded,
 }
 
 /// Run `artifact` with `input` on stdin, optionally bounded by `timelimit`.
 ///
-/// `stderr` is discarded. A `None` timelimit means run to completion (used for
-/// slow brute-force binaries in cross-check).
+/// A `None` timelimit means run to completion.
 pub(super) fn run_with_input(
     artifact: &Path,
     input: &str,
@@ -33,7 +40,7 @@ fn run_with_input_cancellable(
     cwd: &Path,
     cancelled: impl Fn() -> bool,
 ) -> anyhow::Result<RunResult> {
-    use std::io::Write as _;
+    use std::io::{Read as _, Write as _};
     use std::process::{Command, Stdio};
     use std::thread;
 
@@ -44,7 +51,7 @@ fn run_with_input_cancellable(
     let mut child = Command::new(artifact)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .current_dir(cwd)
         .spawn()
         .with_context(|| format!("failed to spawn {}", artifact.display()))?;
@@ -56,13 +63,15 @@ fn run_with_input_cancellable(
         let _ = stdin.write_all(&input_bytes);
     });
 
-    let mut stdout_pipe = child.stdout.take().expect("stdout piped");
-    let stdout_handle = thread::spawn(move || -> Vec<u8> {
-        use std::io::Read as _;
-        let mut buf = Vec::new();
-        let _ = stdout_pipe.read_to_end(&mut buf);
-        buf
-    });
+    let read_all = |mut pipe: Box<dyn std::io::Read + Send>| {
+        thread::spawn(move || -> Vec<u8> {
+            let mut buf = Vec::new();
+            let _ = pipe.read_to_end(&mut buf);
+            buf
+        })
+    };
+    let stdout_handle = read_all(Box::new(child.stdout.take().expect("stdout piped")));
+    let stderr_handle = read_all(Box::new(child.stderr.take().expect("stderr piped")));
 
     let start = std::time::Instant::now();
     let mut interrupted = false;
@@ -90,6 +99,7 @@ fn run_with_input_cancellable(
     };
 
     let stdout_bytes = stdout_handle.join().unwrap_or_default();
+    let stderr_bytes = stderr_handle.join().unwrap_or_default();
 
     if interrupted {
         return Err(crate::interrupt::Interrupted.into());
@@ -101,7 +111,12 @@ fn run_with_input_cancellable(
         Some(status) if status.success() => {
             RunResult::Ok(String::from_utf8_lossy(&stdout_bytes).into_owned())
         }
-        Some(status) => RunResult::RuntimeError(status.code().unwrap_or(-1)),
+        // `Display for ExitStatus` reports the signal when there is no exit code,
+        // which is the only portable way to tell "exited 1" from "killed by SIGSEGV".
+        Some(status) => RunResult::RuntimeError {
+            status: status.to_string(),
+            stderr: String::from_utf8_lossy(&stderr_bytes).trim_end().to_owned(),
+        },
     })
 }
 

@@ -13,8 +13,20 @@ use snowchains_core::{
     judge::{CommandExpression, Verdict},
     testsuite::{BatchTestCase, DeterministicExpectedOutput, ExpectedOutput},
 };
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{
+    path::Path,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use termcolor::Color;
+
+/// Wall-clock ceiling on the expected-output phase of a cross-check.
+///
+/// A brute force is slow on purpose, so it runs without a per-case limit; but a
+/// single non-terminating case would then hang the run forever. The *remaining*
+/// budget is passed as each case's limit, so the ceiling is enforced during a
+/// case, not merely between cases.
+const CROSS_BUDGET: Duration = Duration::from_secs(60);
 
 const DISPLAY_LIMIT_NOTE: &str = "output beyond --display-limit (default: 4KiB; e.g. 100000 B) is truncated; change the limit with --display-limit";
 
@@ -160,7 +172,7 @@ pub(crate) struct CrossCheckArgs<'a> {
     pub display_limit: usize,
     pub cwd: &'a Path,
     pub main_bin_name: &'a str,
-    pub cross_bin_alias: &'a str,
+    pub cross_bin_name: &'a str,
     pub shell: &'a mut Shell,
 }
 
@@ -174,7 +186,7 @@ pub(crate) fn run_cross_check(args: CrossCheckArgs<'_>) -> anyhow::Result<()> {
         display_limit,
         cwd,
         main_bin_name,
-        cross_bin_alias,
+        cross_bin_name,
         shell,
     } = args;
 
@@ -192,10 +204,30 @@ pub(crate) fn run_cross_check(args: CrossCheckArgs<'_>) -> anyhow::Result<()> {
     super::write_section_banner(shell.err(), "cross-check tests")?;
 
     // Run the cross (brute-force) binary on each case to obtain expected output.
+    // Each case is reported as it finishes: this phase used to be silent, so a
+    // slow or hanging brute force looked identical to a crash.
+    let started = Instant::now();
+    let total = cases.len();
     let mut adopted: Vec<BatchTestCase> = Vec::new();
-    for (name, input) in &cases {
+    let mut out_of_budget = false;
+
+    for (i, (name, input)) in cases.iter().enumerate() {
         crate::interrupt::check()?;
-        match run_with_input(cross_artifact, input, None, cwd)? {
+        let Some(remaining) = CROSS_BUDGET.checked_sub(started.elapsed()) else {
+            out_of_budget = true;
+            break;
+        };
+        shell.progress_line(
+            "generating",
+            format!(
+                "expected output {}/{} ({name}) [{:.0}s/{}s]",
+                i + 1,
+                total,
+                started.elapsed().as_secs_f64(),
+                CROSS_BUDGET.as_secs(),
+            ),
+        )?;
+        match run_with_input(cross_artifact, input, Some(remaining), cwd)? {
             RunResult::Ok(output) => {
                 adopted.push(BatchTestCase {
                     name: Some(name.clone()),
@@ -206,21 +238,67 @@ pub(crate) fn run_cross_check(args: CrossCheckArgs<'_>) -> anyhow::Result<()> {
                     }),
                 });
             }
-            RunResult::RuntimeError(code) => {
+            RunResult::RuntimeError { status, stderr } => {
+                shell.progress_clear();
+                // A Rust panic ends with the RUST_BACKTRACE hint; the message
+                // itself is the line before it.
+                let detail = stderr
+                    .lines()
+                    .rev()
+                    .find(|l| {
+                        !l.trim().is_empty() && !l.starts_with("note: run with `RUST_BACKTRACE")
+                    })
+                    .map(|l| format!(": {}", l.trim()))
+                    .unwrap_or_default();
                 shell.warn(format!(
-                    "cross binary RE (exit {code}) on case {name}, skipping"
+                    "`{cross_bin_name}` failed on case {name} ({status}){detail}; skipping"
                 ))?;
             }
+            // The only limit passed in is the remaining budget, so a timeout here
+            // means the budget ran out mid-case rather than "this case is slow".
             RunResult::TimeLimitExceeded => {
-                shell.warn(format!("cross binary TLE on case {name}, skipping"))?;
+                out_of_budget = true;
+                break;
             }
         }
     }
+    shell.progress_clear();
+
+    if out_of_budget && !adopted.is_empty() {
+        shell.warn(format!(
+            "cross-check budget of {}s exhausted after {}/{} cases; \
+             judging what was generated so far",
+            CROSS_BUDGET.as_secs(),
+            adopted.len(),
+            total,
+        ))?;
+    }
 
     if adopted.is_empty() {
-        shell.warn("all cross-check cases skipped (cross binary RE/TLE on every input)")?;
-        return Ok(());
+        // Previously this warned and returned `Ok`, so a cross-check that verified
+        // nothing at all reported success.
+        anyhow::bail!(
+            "no expected output could be generated: `{cross_bin_name}` produced none of the \
+             {total} case(s){}",
+            if out_of_budget {
+                format!(" within the {}s budget", CROSS_BUDGET.as_secs())
+            } else {
+                String::new()
+            },
+        );
     }
+
+    // `{adopted}/{total}` rather than a bare count: a skipped case is warned about
+    // as it happens, but the ratio is what makes a partial run obvious at the end.
+    shell.status(
+        "Generated",
+        format!(
+            "{}/{} expected output(s) in {:.1}s",
+            adopted.len(),
+            total,
+            started.elapsed().as_secs_f64(),
+        ),
+    )?;
 
     let mut outcome = snowchains_core::judge::judge(
         shell.progress_draw_target(),
@@ -254,7 +332,7 @@ pub(crate) fn run_cross_check(args: CrossCheckArgs<'_>) -> anyhow::Result<()> {
         writeln!(shell.err())?;
         outcome.print_pretty(shell.err(), Some(display_limit))?;
         writeln!(shell.err())?;
-        shell.err_label(Color::Yellow, "expected", cross_bin_alias)?;
+        shell.err_label(Color::Yellow, "expected", cross_bin_name)?;
         shell.err_label(Color::Yellow, "actual", main_bin_name)?;
         writeln!(shell.err())?;
     } else {

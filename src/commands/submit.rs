@@ -46,8 +46,8 @@ pub struct OptCompeteSubmit {
     #[structopt(long, value_name("N"), min_values = 0, max_values = 1)]
     pub random: Option<Vec<u32>>,
 
-    /// Cross-check against brute-force binary, optional case count (default 100)
-    #[structopt(long, value_name("PATH [N]"), min_values = 1, max_values = 2)]
+    /// Cross-check against a brute-force target (default `<alias>_cross`), optional case count (default 100)
+    #[structopt(long, value_name("[TARGET] [N]"), min_values = 0, max_values = 2)]
     pub cross: Option<Vec<String>>,
 
     /// Do not watch the submission
@@ -149,11 +149,12 @@ pub(crate) fn run(opt: OptCompeteSubmit, ctx: crate::Context<'_>) -> anyhow::Res
     let (bin, package_metadata_bin) = if let Some(src) = src {
         let src = cwd.join(src.strip_prefix(".").unwrap_or(&src));
         let bin = member.bin_target_by_src_path(src)?;
-        let (_, pkg_md_bin) = package_metadata.bin_like_by_name_or_alias(&bin.name)?;
+        let (_, pkg_md_bin) = package_metadata.bin_like_by_name_or_alias_or_cross(&bin.name)?;
         (bin, pkg_md_bin)
     } else if let Some(name_or_alias) = &name_or_alias {
-        let (bin_name, pkg_md_bin) = package_metadata.bin_like_by_name_or_alias(name_or_alias)?;
-        let bin = member.bin_like_target_by_name(bin_name)?;
+        let (bin_name, pkg_md_bin) =
+            package_metadata.bin_like_by_name_or_alias_or_cross(name_or_alias)?;
+        let bin = member.bin_like_target_by_name(&bin_name)?;
         (bin, pkg_md_bin)
     } else {
         unreachable!()

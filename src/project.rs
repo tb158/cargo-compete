@@ -106,7 +106,39 @@ impl PackageMetadataCargoCompete {
             [..] => bail!("multiple `problem`s for {}", bin_name_or_alias),
         }
     }
+
+    /// Resolve a name or alias, also accepting a cross-check companion target.
+    ///
+    /// Returns the cargo target name to build and the problem metadata to test it
+    /// against. An exact match on a registered `bin`/`example` wins. Otherwise a
+    /// name ending in [`CROSS_SUFFIX`] is resolved against its base: `e_cross`
+    /// borrows `e`'s problem URL and test-case file. Such a target is discovered
+    /// by cargo from `src/bin/e_cross.rs` alone, so a brute force never needs a
+    /// manifest entry of its own.
+    pub(crate) fn bin_like_by_name_or_alias_or_cross(
+        &self,
+        name_or_alias: &str,
+    ) -> anyhow::Result<(String, &PackageMetadataCargoCompeteBinExample)> {
+        match self.bin_like_by_name_or_alias(name_or_alias) {
+            Ok((name, meta)) => Ok((name.to_owned(), meta)),
+            Err(err) => {
+                let base = name_or_alias
+                    .strip_suffix(CROSS_SUFFIX)
+                    .filter(|base| !base.is_empty())
+                    .ok_or(err)?;
+                let (_, meta) = self.bin_like_by_name_or_alias(base)?;
+                Ok((name_or_alias.to_owned(), meta))
+            }
+        }
+    }
 }
+
+/// Suffix marking a cross-check companion of another target.
+///
+/// `cargo compete dup e` writes `src/bin/e_cross.rs`, and `--cross` looks for that
+/// name by default. The suffix is also what lets `test`/`submit` accept `e_cross`
+/// without a manifest entry.
+pub(crate) const CROSS_SUFFIX: &str = "_cross";
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct PackageMetadataCargoCompeteBinExample {
@@ -213,7 +245,8 @@ impl cm::Package {
         self.targets
             .iter()
             .find(|t| {
-                t.name == name && t.kind == ["bin".to_owned()] || t.kind == ["example".to_owned()]
+                t.name == name
+                    && (t.kind == ["bin".to_owned()] || t.kind == ["example".to_owned()])
             })
             .with_context(|| format!("no bin/example target named `{}` in `{}`", name, self.name))
     }
@@ -331,6 +364,46 @@ mod tests {
     use indexmap::indexmap;
     use pretty_assertions::assert_eq;
     use toml::toml;
+
+    fn metadata() -> PackageMetadataCargoCompete {
+        toml! {
+            [bin]
+            abc999-a = { alias = "a", problem = "https://atcoder.jp/contests/abc999/tasks/abc999_a" }
+            abc999-e = { alias = "e", problem = "https://atcoder.jp/contests/abc999/tasks/abc999_e" }
+        }
+        .try_into::<PackageMetadataCargoCompete>()
+        .unwrap()
+    }
+
+    #[test]
+    fn cross_target_borrows_the_base_problem_but_keeps_its_own_name() {
+        let md = metadata();
+        let (name, meta) = md.bin_like_by_name_or_alias_or_cross("e_cross").unwrap();
+        // Build `e_cross`, but test it against `e`'s problem and `e.yml`.
+        assert_eq!(name, "e_cross");
+        assert_eq!(meta.alias, "e");
+
+        // The `[[bin]]` name resolves the same way, so `--src` works too.
+        let (name, meta) = md
+            .bin_like_by_name_or_alias_or_cross("abc999-e_cross")
+            .unwrap();
+        assert_eq!(name, "abc999-e_cross");
+        assert_eq!(meta.alias, "e");
+    }
+
+    #[test]
+    fn a_registered_target_still_wins_and_unrelated_names_do_not_resolve() {
+        let md = metadata();
+        let (name, meta) = md.bin_like_by_name_or_alias_or_cross("e").unwrap();
+        assert_eq!((name.as_str(), &*meta.alias), ("abc999-e", "e"));
+
+        for unknown in ["_cross", "e_copy", "e2", "ex", "z_cross"] {
+            assert!(
+                md.bin_like_by_name_or_alias_or_cross(unknown).is_err(),
+                "`{unknown}` must not resolve to another problem",
+            );
+        }
+    }
 
     #[test]
     fn deserialize_package_metadata_cargo_compete() -> anyhow::Result<()> {

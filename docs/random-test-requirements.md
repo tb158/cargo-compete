@@ -13,6 +13,16 @@
 - `--no-sample` はサンプルテストのみを省略する。random test / cross-check は実行する。
 - `--no-test` は提出前のテスト全体を省略する。`cargo compete submit` 単独でのみ使用できる。
 
+### `cargo compete dup`
+
+```bash
+# 解答 src/bin/a.rs を src/bin/a_cross.rs にコピーする（既定のクロスターゲット）
+cargo compete dup a
+
+# 既存の a_cross.rs を上書きする
+cargo compete dup a --force
+```
+
 ### `cargo compete test`
 
 ```bash
@@ -20,13 +30,19 @@
 cargo compete test a --random
 cargo compete test a --random 50
 
-# クロスチェック（サンプル通過後に別実装と比較、省略時はデフォルト100件）
-cargo compete test a --cross src/bin/a_brute.rs
-cargo compete test a --cross "a copy.rs" 50
+# クロスチェック（サンプル通過後に愚直解と比較、省略時は `a_cross` を100件）
+cargo compete test a --cross
+cargo compete test a --cross 50
+cargo compete test a --cross a_brute
+cargo compete test a --cross a_brute 50
 
 # サンプルテストを省略してランダムテスト/クロスチェックのみ実行
 cargo compete test a --random --no-sample
-cargo compete test a --cross "a_brute.rs" --no-sample
+cargo compete test a --cross --no-sample
+
+# 愚直解を単体でテスト/提出する（`a.yml` を共有する）
+cargo compete test a_cross
+cargo compete submit a_cross
 ```
 
 ### `cargo compete submit`
@@ -45,10 +61,10 @@ cargo compete submit a --random 50
 cargo compete submit a --random --no-sample
 
 # サブミット前にクロスチェックを実行（全て一致したら提出）
-cargo compete submit a --cross "a_brute.rs"
+cargo compete submit a --cross
 
 # サンプルテストを省略してクロスチェックのみ実行し、全て一致したら提出
-cargo compete submit a --cross "a_brute.rs" --no-sample
+cargo compete submit a --cross --no-sample
 ```
 
 **無効な組み合わせ（エラー終了）:**
@@ -57,7 +73,7 @@ cargo compete submit a --cross "a_brute.rs" --no-sample
 |---|---|
 | `cargo compete test a --no-test` | `test` でテスト全体を省略する意味がない |
 | `cargo compete submit a --random --no-test` | random test を指定しながらテスト全体を省略する指定は矛盾する |
-| `cargo compete submit a --cross "a_brute.rs" --no-test` | cross-check を指定しながらテスト全体を省略する指定は矛盾する |
+| `cargo compete submit a --cross --no-test` | cross-check を指定しながらテスト全体を省略する指定は矛盾する |
 | `cargo compete test a --no-sample` | 省略後に実行する random test / cross-check がない |
 | `cargo compete submit a --no-sample` | 省略後に実行する random test / cross-check がない |
 
@@ -219,12 +235,18 @@ error: {失敗件数}/{総件数} tests failed  ← 失敗がある場合のみ
 
 ### 実行フロー
 
-1. メインバイナリのサンプルテスト（`--no-sample` なら省略）✅ 実装済み
-2. クロスバイナリを `Cargo.toml` に自動登録（未登録の場合）
-3. クロスバイナリをビルド
-4. クロスバイナリのサンプルテスト（`--no-sample` なら省略）✅ 実装済み
-   - 愚直解は低速なことが多いため、**制限時間なし**で実行する
-5. ランダム入力をクロスバイナリに流して期待出力を収集（RE/TLE のケースはスキップ）
+1. `--cross` の値からクロスターゲット名を解決（省略時は `{alias}_cross`）
+2. メインバイナリとクロスバイナリをビルド（同一ツールチェーン・プロファイル）
+   - サンプルテストの前にビルドする。愚直解がコンパイルできない場合はサンプルより先に失敗させる
+3. メインバイナリのサンプルテスト（`--no-sample` なら省略）
+4. クロスバイナリのサンプルテスト（`--no-sample` なら省略）
+   - 愚直解は低速なことが多いため、**制限時間なし**（`timelimit: None`）で実行する
+5. ランダム入力をクロスバイナリに流して期待出力を収集
+   - 全体で **60秒** の予算を設ける。各ケースには「残り予算」を制限時間として渡すため、
+     1ケースが長時間走り続けても上限を超えない
+   - RE のケースはスキップし、panic メッセージ（stderr 最終行）を warning として出す
+   - 予算切れで打ち切った場合、採用済みケースが1件以上あればその件数で警告して続行し、
+     0件ならエラー終了する
 6. 期待出力に対してメインバイナリを判定
 7. 1件でも WA/RE/TLE が出たら非ゼロ終了
 
@@ -236,13 +258,20 @@ error: {失敗件数}/{総件数} tests failed  ← 失敗がある場合のみ
 4. メインバイナリに対して judge() を呼び出し(期待値をクロスバイナリの出力とする) **progress_barあり**
 5. `JudgeOutcome { verdicts: outcome.verdicts.into_iter().filter(非AC).collect() }` でフィルタリングし `print_pretty` — 通番は 1/N 形式にリセットされる（フィールドがpublicなため手動構築可）
 
-### Cargo.toml 自動登録
+### クロスターゲットの解決
 
-- `[[bin]]` エントリと `[package.metadata.cargo-compete.bin]` エントリを同時に追加
-- bin name: `{contest}-{ファイル名stemのkebab変換}` 例: `abc440-a-brute`
-- alias: ファイル名stemのkebab変換 例: `a-brute`
-- `--cross` にファイル名だけを指定した場合は対象packageの `src/bin/` 配下を参照する（例: `--cross "a copy.rs"` は `src/bin/a copy.rs`）
-- 既に同名binが登録済みでも、指定されたソースと `[[bin]].path` が異なる場合は正しいpathへ更新する
+- `--cross` が取るのは**ターゲット名**であり、ソースのパスではない。`src/bin/*.rs` のファイル名 stem が
+  そのままターゲット名になる（Cargo の自動検出）ため、`Cargo.toml` は一切書き換えない
+  - パス（`.rs` 終わり / `/` や `\` を含む）が来たら、書き換え方を示してエラーにする
+- 引数の解釈: `[]` → `({alias}_cross, 100件)` / 数字のみ1つ → 件数 / それ以外1つ → ターゲット名 /
+  2つ → ターゲット名と件数。数字だけのターゲット名は2引数形式で指定する
+- 既定のクロスターゲット `src/bin/{alias}_cross.rs` は `cargo compete dup {alias}` が作る
+  （テンプレートではなく現在の解答をコピーするので `input!` はそのまま使える）
+- ターゲットが見つからない場合、既定名のときだけ `cargo compete dup` を促す note を添える
+- `{alias}_cross` は `package.metadata.cargo-compete.bin` に登録されていないが、
+  末尾 `_cross` を落とした名前で元問題のエントリを引くため、`cargo compete test a_cross` /
+  `cargo compete submit a_cross` は元問題の `a.yml` と URL を使って動作する
+  （登録済みターゲットの解決が常に優先される）
 
 ### 比較方法
 
@@ -308,8 +337,8 @@ stdin:
 actual:
 EMPTY
 
-expected: a-copy ←AC以外がある場合のみ
-actual: a        ←AC以外がある場合のみ
+expected: a_cross   ←AC以外がある場合のみ（クロスターゲット名）
+actual: abc440-a    ←AC以外がある場合のみ（メインバイナリのbin名）
 
 note: output beyond --display-limit (default: 4KiB; e.g. 100000 B) is truncated; change the limit with --display-limit
 warning: skipped N unsupported constraint(s): {制約内容}  ← スキップがある場合のみ

@@ -36,12 +36,10 @@ pub(crate) struct Args<'a> {
     pub(crate) no_sample: bool,
     /// Number of random cases to run after samples pass (None = skip)
     pub(crate) random_count: Option<u32>,
-    /// Pre-built cross (brute-force) binary artifact path
-    pub(crate) cross_artifact: Option<Utf8PathBuf>,
+    /// Cross-check (brute-force) target, built here with the same profile as `bin`
+    pub(crate) cross_target: Option<&'a cm::Target>,
     /// Number of cross-check cases to run (None = skip)
     pub(crate) cross_count: Option<u32>,
-    /// File stem of the cross binary source (display only)
-    pub(crate) cross_bin_alias: Option<String>,
 }
 
 pub(crate) fn test(args: Args<'_>) -> anyhow::Result<()> {
@@ -60,9 +58,8 @@ pub(crate) fn test(args: Args<'_>) -> anyhow::Result<()> {
         shell,
         no_sample,
         random_count,
-        cross_artifact,
+        cross_target,
         cross_count,
-        cross_bin_alias,
     } = args;
 
     let test_suite_path = test_suite_path(
@@ -150,40 +147,44 @@ pub(crate) fn test(args: Args<'_>) -> anyhow::Result<()> {
         }
     };
 
-    if let Some(toolchain) = toolchain {
-        crate::process::process("rustup").args(&["run", toolchain, "cargo"])
-    } else {
-        crate::process::process(crate::process::cargo_exe()?)
-    }
-    .arg("build")
-    .arg(if bin.kind == ["example".to_owned()] {
-        "--example"
-    } else {
-        "--bin"
-    })
-    .arg(&bin.name)
-    .args(if release { &["--release"] } else { &[] })
-    .arg("--manifest-path")
-    .arg(&member.manifest_path)
-    .cwd(&metadata.workspace_root)
-    .exec_with_shell_status(shell)?;
+    let build = |target: &cm::Target, shell: &mut Shell| -> anyhow::Result<Utf8PathBuf> {
+        let is_example = target.kind == ["example".to_owned()];
 
-    let artifact = metadata
-        .target_directory
-        .join(if release { "release" } else { "debug" })
-        .join(if bin.kind == ["example".to_owned()] {
-            "examples"
+        if let Some(toolchain) = toolchain {
+            crate::process::process("rustup").args(&["run", toolchain, "cargo"])
         } else {
-            ""
-        })
-        .join(&bin.name)
-        .with_extension(env::consts::EXE_EXTENSION);
+            crate::process::process(crate::process::cargo_exe()?)
+        }
+        .arg("build")
+        .arg(if is_example { "--example" } else { "--bin" })
+        .arg(&target.name)
+        .args(if release { &["--release"] } else { &[] })
+        .arg("--manifest-path")
+        .arg(&member.manifest_path)
+        .cwd(&metadata.workspace_root)
+        .exec_with_shell_status(shell)?;
 
-    ensure!(
-        artifact.exists(),
-        "`cargo build` succeeded but `{}` was not produced. probably this is a bug",
-        artifact,
-    );
+        let artifact = metadata
+            .target_directory
+            .join(if release { "release" } else { "debug" })
+            .join(if is_example { "examples" } else { "" })
+            .join(&target.name)
+            .with_extension(env::consts::EXE_EXTENSION);
+
+        ensure!(
+            artifact.exists(),
+            "`cargo build` succeeded but `{}` was not produced. probably this is a bug",
+            artifact,
+        );
+        Ok(artifact)
+    };
+
+    let artifact = build(bin, shell)?;
+    // Built up front so a brute force that does not compile fails before the
+    // sample tests rather than after them.
+    let cross_artifact = cross_target
+        .map(|target| build(target, shell))
+        .transpose()?;
 
     let display_limit = display_limit.into::<Byte>().value().saturating_as();
 
@@ -273,7 +274,7 @@ pub(crate) fn test(args: Args<'_>) -> anyhow::Result<()> {
                 display_limit,
                 cwd: metadata.workspace_root.as_std_path(),
                 main_bin_name: &bin.name,
-                cross_bin_alias: cross_bin_alias.as_deref().unwrap_or(""),
+                cross_bin_name: &cross_target.expect("checked above").name,
                 shell,
             })?;
         }

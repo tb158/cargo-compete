@@ -3,11 +3,9 @@ use crate::{
     project::{MetadataExt as _, PackageExt as _},
     shell::ColorChoice,
 };
+use anyhow::{anyhow, bail, Context as _};
 use human_size::Size;
-use std::{
-    env,
-    path::{Path, PathBuf},
-};
+use std::path::PathBuf;
 use structopt::StructOpt;
 use strum::VariantNames as _;
 
@@ -67,8 +65,8 @@ pub struct OptCompeteTest {
     #[structopt(long = "no-sample")]
     pub no_sample: bool,
 
-    /// Cross-check against brute-force binary, optional case count (default 100)
-    #[structopt(long, value_name("PATH [N]"), min_values = 1, max_values = 2)]
+    /// Cross-check against a brute-force target (default `<alias>_cross`), optional case count (default 100)
+    #[structopt(long, value_name("[TARGET] [N]"), min_values = 0, max_values = 2)]
     pub cross: Option<Vec<String>>,
 
     #[structopt(required_unless("src"))]
@@ -76,12 +74,44 @@ pub struct OptCompeteTest {
     pub name_or_alias: Option<String>,
 }
 
-fn resolve_cross_source_path(cwd: &Path, raw_src: &Path) -> PathBuf {
-    if !raw_src.is_absolute() && raw_src.components().count() == 1 {
-        cwd.join("src").join("bin").join(raw_src)
-    } else {
-        cwd.join(raw_src.strip_prefix(".").unwrap_or(raw_src))
+/// Number of cross-check cases when `--cross` is given without one.
+const DEFAULT_CROSS_COUNT: u32 = 100;
+
+/// Split `--cross` values into an optional target name and a case count.
+///
+/// `--cross` and `--cross N` use the default `<alias>_cross` target; `--cross
+/// TARGET` and `--cross TARGET N` name it explicitly. A lone all-digit value is
+/// read as the count, so a target whose name is only digits needs the two-value
+/// form.
+fn parse_cross_args(values: &[String]) -> anyhow::Result<(Option<&str>, u32)> {
+    fn count(s: &str) -> anyhow::Result<u32> {
+        s.parse()
+            .with_context(|| format!("invalid case count for `--cross`: `{s}`"))
     }
+
+    match values {
+        [] => Ok((None, DEFAULT_CROSS_COUNT)),
+        [one] if !one.is_empty() && one.bytes().all(|b| b.is_ascii_digit()) => {
+            Ok((None, count(one)?))
+        }
+        [one] => Ok((Some(cross_target_name(one)?), DEFAULT_CROSS_COUNT)),
+        [target, n] => Ok((Some(cross_target_name(target)?), count(n)?)),
+        _ => unreachable!("`max_values = 2`"),
+    }
+}
+
+/// `--cross` used to take a path to a source file. Reject the old form with the
+/// rewrite spelled out; otherwise it surfaces as a confusing "no target named
+/// `src/bin/e_cross.rs`".
+fn cross_target_name(value: &str) -> anyhow::Result<&str> {
+    if value.ends_with(".rs") || value.contains('/') || value.contains('\\') {
+        bail!(
+            "`--cross` takes a target name, not a path: `{value}`\n\
+             note: a target name is the file stem of a `src/bin/*.rs`, e.g. `e_cross` for \
+             `src/bin/e_cross.rs`",
+        );
+    }
+    Ok(value)
 }
 
 pub(crate) fn run(opt: OptCompeteTest, ctx: crate::Context<'_>) -> anyhow::Result<()> {
@@ -126,59 +156,42 @@ pub(crate) fn run(opt: OptCompeteTest, ctx: crate::Context<'_>) -> anyhow::Resul
     let (bin, pkg_md_bin_example) = if let Some(src) = src {
         let src = cwd.join(src.strip_prefix(".").unwrap_or(&src));
         let bin = member.bin_target_by_src_path(src)?;
-        let (_, pkg_md_bin) = package_metadata.bin_like_by_name_or_alias(&bin.name)?;
+        let (_, pkg_md_bin) = package_metadata.bin_like_by_name_or_alias_or_cross(&bin.name)?;
         (bin, pkg_md_bin)
     } else if let Some(name_or_alias) = &name_or_alias {
         let (bin_name, pkg_md_bin_example) =
-            package_metadata.bin_like_by_name_or_alias(name_or_alias)?;
-        let bin = member.bin_like_target_by_name(bin_name)?;
+            package_metadata.bin_like_by_name_or_alias_or_cross(name_or_alias)?;
+        let bin = member.bin_like_target_by_name(&bin_name)?;
         (bin, pkg_md_bin_example)
     } else {
         unreachable!()
     };
 
-    let (cross_artifact, cross_count, cross_bin_alias) = if let Some(ref v) = cross {
-        let raw_src = PathBuf::from(&v[0]);
-        let cross_src = resolve_cross_source_path(&cwd, &raw_src);
-        let n: u32 = v.get(1).and_then(|s| s.parse().ok()).unwrap_or(100);
-        match snowchains_core::web::PlatformKind::from_url(&pkg_md_bin_example.problem) {
-            Ok(snowchains_core::web::PlatformKind::Atcoder) => {
-                let contest =
-                    snowchains_core::web::atcoder_contest_id(&pkg_md_bin_example.problem)?;
-                let bin_name = crate::random_test::ensure_cross_bin_registered(
-                    member.manifest_path.as_std_path(),
-                    &cross_src,
-                    &contest,
-                    pkg_md_bin_example.problem.as_str(),
-                    shell,
-                )?;
-                let alias = cross_src
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("")
-                    .to_owned();
-                crate::process::process(crate::process::cargo_exe()?)
-                    .arg("build")
-                    .arg("--bin")
-                    .arg(&bin_name)
-                    .arg("--manifest-path")
-                    .arg(&member.manifest_path)
-                    .cwd(&metadata.workspace_root)
-                    .exec_with_shell_status(shell)?;
-                let artifact = metadata
-                    .target_directory
-                    .join("debug")
-                    .join(&bin_name)
-                    .with_extension(env::consts::EXE_EXTENSION);
-                (Some(artifact), Some(n), Some(alias))
+    let (cross_target, cross_count) = if let Some(values) = &cross {
+        let (target_override, n) = parse_cross_args(values)?;
+        let default_name = format!(
+            "{}{}",
+            pkg_md_bin_example.alias,
+            crate::project::CROSS_SUFFIX,
+        );
+        let name = target_override.unwrap_or(&default_name);
+        let target = member.bin_like_target_by_name(name).map_err(|err| {
+            if target_override.is_some() {
+                err
+            } else {
+                // The default target is the one `dup` creates, so point at that
+                // rather than leaving the user to guess from cargo's target list.
+                anyhow!(
+                    "{err}\n\
+                     note: `cargo compete dup {}` copies `{}` to `src/bin/{name}.rs`",
+                    pkg_md_bin_example.alias,
+                    bin.src_path.file_name().unwrap_or(bin.src_path.as_str()),
+                )
             }
-            _ => {
-                shell.warn("--cross is only supported for AtCoder problems")?;
-                (None, None, None)
-            }
-        }
+        })?;
+        (Some(target), Some(n))
     } else {
-        (None, None, None)
+        (None, None)
     };
 
     crate::testing::test(crate::testing::Args {
@@ -202,9 +215,8 @@ pub(crate) fn run(opt: OptCompeteTest, ctx: crate::Context<'_>) -> anyhow::Resul
         shell,
         no_sample,
         random_count: random.map(|v| v.into_iter().next().unwrap_or(5)),
-        cross_artifact,
+        cross_target,
         cross_count,
-        cross_bin_alias,
     })
 }
 
@@ -218,14 +230,30 @@ mod tests {
     }
 
     #[test]
-    fn bare_cross_filename_resolves_under_src_bin() {
+    fn cross_args_split_into_target_and_count() {
+        let v = |ss: &[&str]| ss.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        assert_eq!(parse_cross_args(&v(&[])).unwrap(), (None, 100));
+        assert_eq!(parse_cross_args(&v(&["30"])).unwrap(), (None, 30));
         assert_eq!(
-            resolve_cross_source_path(Path::new("/tmp/contest"), Path::new("a copy.rs")),
-            PathBuf::from("/tmp/contest/src/bin/a copy.rs")
+            parse_cross_args(&v(&["e_cross"])).unwrap(),
+            (Some("e_cross"), 100)
         );
         assert_eq!(
-            resolve_cross_source_path(Path::new("/tmp/contest"), Path::new("src/bin/a copy.rs")),
-            PathBuf::from("/tmp/contest/src/bin/a copy.rs")
+            parse_cross_args(&v(&["e_cross", "30"])).unwrap(),
+            (Some("e_cross"), 30)
         );
+    }
+
+    #[test]
+    fn cross_rejects_a_path_and_a_non_numeric_count() {
+        let v = |ss: &[&str]| ss.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        // Silently defaulting to 100 cases on a typo hid the mistake entirely.
+        assert!(parse_cross_args(&v(&["e_cross", "xyz"])).is_err());
+        for path in ["e_cross.rs", "src/bin/e_cross.rs", "./e_cross"] {
+            assert!(
+                parse_cross_args(&v(&[path])).is_err(),
+                "`--cross {path}` must be rejected as a path"
+            );
+        }
     }
 }

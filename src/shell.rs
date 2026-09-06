@@ -87,6 +87,41 @@ impl Shell {
         stderr.flush()
     }
 
+    /// Print a one-line progress update.
+    ///
+    /// On a terminal the line is rewritten in place, so a hundred updates do not
+    /// scroll the surrounding output away. When stderr is redirected there is no
+    /// cursor to rewind, so each update becomes its own plain line: the
+    /// alternative is total silence, which is indistinguishable from a hang.
+    pub(crate) fn progress_line(
+        &mut self,
+        label: &str,
+        msg: impl fmt::Display,
+    ) -> io::Result<()> {
+        if !self.output.stderr_tty() {
+            return self.err_label(Color::Cyan, label, msg);
+        }
+        if self.needs_clear {
+            self.err_erase_line();
+        }
+        let stderr = self.err();
+        stderr.set_color(color_spec!(Bold, Fg(Color::Cyan)))?;
+        write!(stderr, "{label}:")?;
+        stderr.reset()?;
+        // Leave the cursor at column 0 so `err_erase_line` can wipe the whole line.
+        write!(stderr, " {msg}\r")?;
+        stderr.flush()?;
+        self.needs_clear = true;
+        Ok(())
+    }
+
+    /// Erase a pending in-place progress line, if one is still on screen.
+    pub(crate) fn progress_clear(&mut self) {
+        if self.needs_clear {
+            self.err_erase_line();
+        }
+    }
+
     pub(crate) fn status(
         &mut self,
         status: impl fmt::Display,

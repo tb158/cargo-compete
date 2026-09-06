@@ -20,7 +20,7 @@ AtCoder、Codeforces、yukicoderをサポートしています。
 - (自動で)コンテストへの参加登録
 - サンプルテストケース/システムテストケースを取得し、YAMLで保存
 - コードのテスト
-- ランダムテスト (AtCoderのみ)
+- ランダムテスト・愚直解とのクロスチェック (AtCoderのみ)
 - 提出
 - 提出一覧のストリーミング (AtCoderのみ)
 
@@ -228,10 +228,19 @@ AtCoderでは、問題取得時に保存したYAMLの`random_test`セクショ�
 ```console
 $ cargo compete test a --random
 $ cargo compete test a --random 50 --no-sample
-$ cargo compete test a --cross "a copy.rs"
+$ cargo compete dup a
+$ cargo compete test a --cross
+$ cargo compete test a --cross 50
+$ cargo compete test a --cross a_brute
 ```
 
-件数を省略した場合は5件実行します。最大サイズのケース（MaxSize戦略）でTLEしないことの確認がメインの役割になると思います。制約を強めたい場合などはYAMLを編集してください。ランダムテストの仕様や対応範囲の詳細は[ランダムテスト・クロスチェック機能 要件定義](docs/random-test-requirements.md)を参照してください。
+`--random`は件数を省略した場合5件実行します。最大サイズのケース（MaxSize戦略）でTLEしないことの確認がメインの役割になると思います。制約を強めたい場合などはYAMLを編集してください。
+
+`--cross`は同じ生成入力を愚直解に流し、その出力を期待値として解答を判定します。件数を省略した場合は100件実行します。指定するのはパスではなく**ターゲット名**（`src/bin/*.rs`のファイル名から拡張子を除いた部分）で、省略時は`<alias>_cross`を使います。
+
+`cargo compete dup a`はこの既定のターゲットを作るコマンドで、`src/bin/a.rs`を`src/bin/a_cross.rs`にコピーします（上書きは`--force`）。テンプレートではなく現在の解答からコピーするため、`input!`ブロックはそのまま使え、問題を解いている部分だけを愚直解に書き換えれば済みます。`src/bin`直下のファイルはCargoが自動でターゲットとして認識するため、`Cargo.toml`は変更しません。
+
+ランダムテストの仕様や対応範囲の詳細は[ランダムテスト・クロスチェック機能 要件定義](docs/random-test-requirements.md)を参照してください。
 
 > **注記**
 >
