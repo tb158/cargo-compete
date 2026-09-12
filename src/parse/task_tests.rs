@@ -980,3 +980,29 @@ fn abc453_g_query_operands_use_base_variables() {
         ]
     );
 }
+
+// ─── abc475/c: subscript written with spaces around the operator ──────────────
+
+#[test]
+fn abc475_c_spaced_subscript_yields_array() {
+    let Some(section) = load_section("abc475", 'c') else {
+        return;
+    };
+
+    assert!(
+        section.skipped.is_empty(),
+        "no format line should be skipped, got {:?}",
+        section.skipped
+    );
+    let array = section
+        .format
+        .iter()
+        .find_map(|b| match b {
+            FormatBlock::Array(a) => Some(a),
+            _ => None,
+        })
+        .expect("A array block");
+    assert_eq!(array.base, "a");
+    assert_eq!(array.len.as_deref(), Some("n-1"));
+    assert_eq!(section.vars["a"].range, lit_range(1, 1_000_000_000));
+}

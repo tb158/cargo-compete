@@ -58,6 +58,18 @@ pub(crate) fn normalize_line(line: &str) -> String {
     let brace_right_re = Regex::new(r"\s+\}").unwrap();
     s = brace_right_re.replace_all(&s, "}").to_string();
 
+    // Subscripts are sometimes written with spaces around the operator, as in
+    // `A_{N - 1}`. Tighten `+`/`-` inside the innermost braces so the element
+    // survives whitespace tokenization as a single token. Only operators are
+    // touched, leaving bodies such as `{\rm Query}` unchanged.
+    let brace_body_re = Regex::new(r"\{[^{}]*\}").unwrap();
+    let brace_op_re = Regex::new(r"\s*([+-])\s*").unwrap();
+    s = brace_body_re
+        .replace_all(&s, |cap: &regex::Captures<'_>| {
+            brace_op_re.replace_all(&cap[0], "$1").into_owned()
+        })
+        .to_string();
+
     let brace_concat_re = Regex::new(r"\}([A-Za-z\\])").unwrap();
     s = brace_concat_re.replace_all(&s, "} $1").to_string();
     let bracket_concat_re = Regex::new(r"\]([A-Za-z\\])").unwrap();
@@ -305,4 +317,30 @@ pub(crate) fn find_var_decls(item: &str) -> Vec<(Vec<String>, String)> {
             Some((names, rest))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod normalize_line_tests {
+    use super::normalize_line;
+
+    #[test]
+    fn tightens_spaced_operator_in_subscript() {
+        assert_eq!(
+            normalize_line(r"A_1 A_2 \ldots A_{N - 1}"),
+            r"A_1 A_2 \ldots A_{N-1}"
+        );
+        assert_eq!(normalize_line(r"a_{N - 1} b_{N - 1}"), r"a_{N-1} b_{N-1}");
+        assert_eq!(normalize_line(r"A_{i + 1}"), r"A_{i+1}");
+    }
+
+    #[test]
+    fn keeps_words_outside_operators_intact() {
+        // Only `+`/`-` are tightened; other spaced bodies stay as they are.
+        assert_eq!(normalize_line(r"{\rm Query}_1"), r"{\rm Query}_1");
+    }
+
+    #[test]
+    fn leaves_negative_literal_subscript_unchanged() {
+        assert_eq!(normalize_line(r"A_{-1} \ldots A_W"), r"A_{-1} \ldots A_W");
+    }
 }
