@@ -83,6 +83,7 @@ pub(crate) fn parse_constraints(items: &[String]) -> ConstraintParse {
             || try_all_distinct(item, &mut acc)
             || try_sum_limit(item, &mut acc)
             || is_already_string_constraint(item, &acc)
+            || try_string_length(item, &mut acc)
             || try_inequality_chain(item, &mut acc)
             || is_ignorable(item);
         if !handled {
@@ -390,6 +391,35 @@ fn apply_abs_length_updates(items: &[String], acc: &mut ConstraintParse) {
             }
         }
     }
+}
+
+// ─── try_string_length: S,T の長さは 1 以上 N 以下 ───────────────────────────
+
+/// Length clause for strings declared elsewhere. Pass 1 only reads a length
+/// from an item that also names a charset; this reads it from any item whose
+/// subject is already-declared strings.
+fn try_string_length(item: &str, acc: &mut ConstraintParse) -> bool {
+    let Some(pos) = item.find("長さ") else {
+        return false;
+    };
+    let vars = extract_var_names(&item[..pos]);
+    if vars.is_empty() || !vars.iter().all(|v| acc.str_vars.contains_key(v)) {
+        return false;
+    }
+    let (lo, hi) = parse_length_spec(item);
+    if lo.is_none() && hi.is_none() {
+        return false;
+    }
+    for v in &vars {
+        let spec = acc.str_vars.get_mut(v).expect("checked above");
+        if lo.is_some() {
+            spec.len_lo = lo.clone();
+        }
+        if hi.is_some() {
+            spec.len_hi = hi.clone();
+        }
+    }
+    true
 }
 
 // ─── Tokenisation ─────────────────────────────────────────────────────────────

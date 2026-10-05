@@ -600,3 +600,24 @@ fn natural_inequality_fuzzy_prose_prefix() {
     assert_eq!(n.lo, Some(b_lit(1)));
     assert_eq!(n.hi, Some(b_lit(100_000)));
 }
+
+#[test]
+fn length_clause_without_charset_applies_to_declared_strings() {
+    // abc301/c: charset and length are stated in separate items.
+    let p = parse_constraints(&[
+        "S,T は英小文字と <code>@</code> からなる".to_string(),
+        r"S,T の長さは等しく 1 以上 2\times 10^5 以下".to_string(),
+    ]);
+    for name in ["s", "t"] {
+        let spec = p.str_vars.get(name).expect(name);
+        assert_eq!(spec.len_lo, Some(b_lit(1)), "{name} lower bound");
+        assert_eq!(spec.len_hi, Some(b_lit(200_000)), "{name} upper bound");
+    }
+    assert!(p.skipped.is_empty(), "unexpected skipped: {:?}", p.skipped);
+}
+
+#[test]
+fn length_clause_for_undeclared_variable_is_not_consumed() {
+    let p = parse_constraints(&["S の長さは 1 以上 10 以下".to_string()]);
+    assert!(p.str_vars.is_empty());
+}
