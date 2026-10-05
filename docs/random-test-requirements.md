@@ -415,6 +415,12 @@ error: {失敗件数}/{総件数} tests failed  ← 失敗がある場合のみ
 - Chars の `len` が literal または通常変数（例: `3`, `w`）なら厳密な共有長として扱い、同じ Chars 変数から出力する各文字列へ同じ長さを適用する。
 - Chars の `len` が pipe 付き synthetic 変数（例: `|s|`）なら長さ範囲を表し、scalar、Array、Rows、TestCases / Queries 内を問わず、出力する Chars 1 要素ごとに長さを生成する。
 
+> **既知の課題（yml の見た目と実態の不一致）**: 別の Chars 変数が pipe 付き synthetic を参照する
+> 書き方（例: abc301/c の `t.len: "|s|"`）は、見た目上「`s` と同じ長さ」に読めるが、
+> 実際は `|s|` の範囲から `t` 用に長さを引き直すため `|s| ≠ |t|` のケースが出る。
+> 複数変数で長さを共有したいときは pipe なしの通常変数（例: `len: l` + vars `l: { type: usize, range }`）を使う。
+> 見た目と実態を一致させる対応（警告・中断・共有化のいずれか）は未定。
+
 | 形 | yml | 戦略の単位 |
 |---|-----|-----------|
 | 整数 1D | `array { base, len: n }` | 配列全体（len=n） |
