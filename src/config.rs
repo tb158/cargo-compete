@@ -190,6 +190,7 @@ impl CargoCompeteConfig {
                 .unwrap_or_default();
 
             Ok(CargoCompeteConfigTemplate {
+                header: None,
                 src,
                 new: Some(CargoCompeteConfigTemplateNew {
                     edition: None,
@@ -208,8 +209,20 @@ impl CargoCompeteConfig {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub(crate) struct CargoCompeteConfigTemplate {
+    pub(crate) header: Option<String>,
     pub(crate) src: String,
     pub(crate) new: Option<CargoCompeteConfigTemplateNew>,
+}
+
+impl CargoCompeteConfigTemplate {
+    /// Prepends `header` to `body`, adding a newline if `header` does not end with one.
+    pub(crate) fn with_header(&self, body: &str) -> String {
+        match self.header.as_deref() {
+            None | Some("") => body.to_owned(),
+            Some(header) if header.ends_with('\n') => format!("{header}{body}"),
+            Some(header) => format!("{header}\n{body}"),
+        }
+    }
 }
 
 #[derive(Deserialize, Default, Debug, Clone)]
@@ -724,7 +737,10 @@ fn liquid_template_with_custom_filter(text: &str) -> Result<liquid::Template, St
 
 #[cfg(test)]
 mod tests {
-    use crate::{config::CargoCompeteConfig, web::ATCODER_RUST_LANG_ID};
+    use crate::{
+        config::{CargoCompeteConfig, CargoCompeteConfigTemplate},
+        web::ATCODER_RUST_LANG_ID,
+    };
     use itertools::iproduct;
     use liquid::object;
     use pretty_assertions::assert_eq;
@@ -764,6 +780,107 @@ mod tests {
             .map_err(anyhow::Error::msg)?
             .render(&object!({ "s": "FooBarBaz" }))?;
         assert_eq!("foo-bar-baz", output);
+        Ok(())
+    }
+
+    fn with_header(template: &str) -> anyhow::Result<String> {
+        let template = toml::from_str::<CargoCompeteConfigTemplate>(template)?;
+        Ok(template.with_header(&template.src))
+    }
+
+    #[test]
+    fn template_with_header_multiline() -> anyhow::Result<()> {
+        let output = with_header(
+            r#"header = '''
+// SPDX-License-Identifier: CC0-1.0
+// https://example.com
+'''
+src = "fn main() {}\n"
+"#,
+        )?;
+        assert_eq!(
+            "// SPDX-License-Identifier: CC0-1.0\n// https://example.com\nfn main() {}\n",
+            output
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn template_with_header_multiline_without_trailing_newline() -> anyhow::Result<()> {
+        let output = with_header(
+            r#"header = '''
+// SPDX-License-Identifier: CC0-1.0
+// https://example.com'''
+src = "fn main() {}\n"
+"#,
+        )?;
+        assert_eq!(
+            "// SPDX-License-Identifier: CC0-1.0\n// https://example.com\nfn main() {}\n",
+            output
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn template_with_header_with_trailing_newline() -> anyhow::Result<()> {
+        let output = with_header(
+            r#"header = "// SPDX-License-Identifier: CC0-1.0\n"
+src = "fn main() {}\n"
+"#,
+        )?;
+        assert_eq!(
+            "// SPDX-License-Identifier: CC0-1.0\nfn main() {}\n",
+            output
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn template_with_header_without_trailing_newline() -> anyhow::Result<()> {
+        let output = with_header(
+            r#"header = "// SPDX-License-Identifier: CC0-1.0"
+src = "fn main() {}\n"
+"#,
+        )?;
+        assert_eq!(
+            "// SPDX-License-Identifier: CC0-1.0\nfn main() {}\n",
+            output
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn template_with_header_keeps_blank_line_in_header() -> anyhow::Result<()> {
+        let output = with_header(
+            r#"header = "// SPDX-License-Identifier: CC0-1.0\n\n"
+src = "fn main() {}\n"
+"#,
+        )?;
+        assert_eq!(
+            "// SPDX-License-Identifier: CC0-1.0\n\nfn main() {}\n",
+            output
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn template_with_header_unset() -> anyhow::Result<()> {
+        let output = with_header(
+            r#"src = "fn main() {}\n"
+"#,
+        )?;
+        assert_eq!("fn main() {}\n", output);
+        Ok(())
+    }
+
+    #[test]
+    fn template_with_header_empty() -> anyhow::Result<()> {
+        let output = with_header(
+            r#"header = ""
+src = "fn main() {}\n"
+"#,
+        )?;
+        assert_eq!("fn main() {}\n", output);
         Ok(())
     }
 }

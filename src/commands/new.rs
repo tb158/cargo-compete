@@ -1,5 +1,5 @@
 use crate::{
-    config::{CargoCompeteConfig, CargoCompeteConfigNew},
+    config::{CargoCompeteConfig, CargoCompeteConfigNew, CargoCompeteConfigTemplate},
     oj_api,
     parse::annotate_ymls_with_format,
     shell::{ColorChoice, Shell},
@@ -100,7 +100,7 @@ pub fn run(opt: OptCompeteNew, ctx: crate::Context<'_>) -> anyhow::Result<()> {
 
             let urls = urls(&outcome);
 
-            let (manifest_dir, src_paths) = create_new_package(
+            let (manifest_dir, src_paths, template) = create_new_package(
                 &cargo_compete_config_path,
                 &cargo_compete_config,
                 &group,
@@ -132,7 +132,7 @@ pub fn run(opt: OptCompeteNew, ctx: crate::Context<'_>) -> anyhow::Result<()> {
                     None => {}
                     Some(srcs) => {
                         for (src_path, content) in srcs {
-                            crate::fs::write(&src_path, content)?;
+                            crate::fs::write(&src_path, template.with_header(&content))?;
                             shell.status("Wrote", src_path)?;
                         }
                     }
@@ -176,7 +176,7 @@ pub fn run(opt: OptCompeteNew, ctx: crate::Context<'_>) -> anyhow::Result<()> {
 
             let urls = urls(&outcome);
 
-            let (manifest_dir, src_paths) = create_new_package(
+            let (manifest_dir, src_paths, _) = create_new_package(
                 &cargo_compete_config_path,
                 &cargo_compete_config,
                 &group,
@@ -243,7 +243,7 @@ pub fn run(opt: OptCompeteNew, ctx: crate::Context<'_>) -> anyhow::Result<()> {
 
             let urls = urls(&outcome);
 
-            let (manifest_dir, src_paths) = create_new_package(
+            let (manifest_dir, src_paths, _) = create_new_package(
                 &cargo_compete_config_path,
                 &cargo_compete_config,
                 &group,
@@ -309,7 +309,7 @@ pub fn run(opt: OptCompeteNew, ctx: crate::Context<'_>) -> anyhow::Result<()> {
 
             let group = &Group::OjApi(contest_id);
 
-            let (manifest_dir, src_paths) = create_new_package(
+            let (manifest_dir, src_paths, _) = create_new_package(
                 &cargo_compete_config_path,
                 &cargo_compete_config,
                 group,
@@ -395,7 +395,7 @@ fn create_new_package(
     group: &Group,
     problems: &BTreeMap<&str, &Url>,
     shell: &mut Shell,
-) -> anyhow::Result<(Utf8PathBuf, Vec<Utf8PathBuf>)> {
+) -> anyhow::Result<(Utf8PathBuf, Vec<Utf8PathBuf>, CargoCompeteConfigTemplate)> {
     let template = cargo_compete_config.template(cargo_compete_config_path, shell)?;
     let template_new = template.new.as_ref().with_context(|| {
         format!("`template.new` is required for the command: {cargo_compete_config_path}",)
@@ -537,8 +537,9 @@ edition = ""
         })
         .collect::<Vec<_>>();
 
+    let src = template.with_header(&template.src);
     for src_path in &src_paths {
-        crate::fs::write(src_path, &template.src)?;
+        crate::fs::write(src_path, &src)?;
     }
 
     for (from, to) in &template_new.copy_files {
@@ -552,7 +553,7 @@ edition = ""
         format!("`{}` package at {}", group.package_name(), manifest_dir),
     )?;
 
-    Ok((manifest_dir, src_paths))
+    Ok((manifest_dir, src_paths, template))
 }
 
 fn escape_key(s: &str) -> String {

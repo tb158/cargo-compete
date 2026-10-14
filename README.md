@@ -295,6 +295,12 @@ test-suite = "{{ manifest_dir }}/testcases/{{ bin_alias }}.yml"
 #open = '["emacsclient", "-n"] + (.paths | map([.src, .test_suite]) | flatten)'
 
 [template]
+# Text prepended to every generated source file. (optional)
+#
+# A newline is added if it does not end with one.
+#header = '''
+#// SPDX-License-Identifier: CC0-1.0
+#'''
 src = '''
 fn main() {
     todo!();
@@ -384,6 +390,8 @@ language_id = "6088"
 #args = ["cargo", "equip", "--exclude-atcoder-crates", "--resolve-cfgs", "--remove", "docs", "--minify", "libs", "--rustfmt", "--check", "--bin", "{{ bin_name }}"]
 #language_id = "6088"
 ```
+
+`template.header` is prepended to every source file that `cargo compete new` and `cargo compete add` write, including the `input!` code generated for AtCoder (which replaces `template.src`). If it does not end with a newline, one is added. No blank line is inserted; write one at the end of `header` if you want it.
 
 And here is an example for `package.metadata` in `Cargo.toml`.
 

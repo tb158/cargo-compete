@@ -71,9 +71,8 @@ pub(crate) fn run(opt: OptCompeteAdd, ctx: crate::Context<'_>) -> anyhow::Result
     let member = metadata.query_for_member(package.as_deref())?;
     let (cargo_compete_config, cargo_compete_config_path) =
         crate::config::load_for_package(member, shell)?;
-    let src_content = &cargo_compete_config
-        .template(&cargo_compete_config_path, shell)?
-        .src;
+    let template = cargo_compete_config.template(&cargo_compete_config_path, shell)?;
+    let src_content = &template.with_header(&template.src);
     let cargo_compete_config_add = cargo_compete_config
         .add
         .as_ref()

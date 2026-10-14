@@ -300,6 +300,12 @@ test-suite = "{{ manifest_dir }}/testcases/{{ bin_alias }}.yml"
 #open = '["emacsclient", "-n"] + (.paths | map([.src, .test_suite]) | flatten)'
 
 [template]
+# Text prepended to every generated source file. (optional)
+#
+# A newline is added if it does not end with one.
+#header = '''
+#// SPDX-License-Identifier: CC0-1.0
+#'''
 src = '''
 fn main() {
     todo!();
@@ -386,6 +392,8 @@ language_id = "6088"
 #args = ["cargo", "equip", "--exclude-atcoder-crates", "--resolve-cfgs", "--remove", "docs", "--minify", "libs", "--rustfmt", "--check", "--bin", "{{ bin_name }}"]
 #language_id = "6088"
 ```
+
+`template.header`は、`cargo compete new`と`cargo compete add`が書き出すすべてのソースファイルの先頭に付きます。AtCoderで`template.src`の代わりに生成される`input!`のコードにも付きます。末尾が改行で終わっていなければ改行を1つ補います。空行は入れないので、必要なら`header`の末尾に書いてください。
 
 各`bin` targetに紐付くサイト上の問題は、パッケージの`Cargo.toml`の`[package.metadata]`に記述されます。
 
