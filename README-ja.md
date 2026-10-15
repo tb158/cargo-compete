@@ -934,4 +934,6 @@ cargo-competeの方はブラウザ上の表示に近い挙動をするため、�
 
 ## ライセンス
 
-[MIT](https://opensource.org/licenses/MIT) or [Apache-2.0](http://www.apache.org/licenses/LICENSE-2.0)のデュアルライセンスです。
+[MIT](https://opensource.org/licenses/MIT)ライセンスです（[LICENSE-MIT](LICENSE-MIT)）。
+
+このリポジトリは [qryxip/cargo-compete](https://github.com/qryxip/cargo-compete) を [slow-cat/cargo-compete](https://github.com/slow-cat/cargo-compete) 経由でフォークし、それぞれ改変したものです。元のリポジトリは MIT または Apache-2.0 のデュアルライセンスですが、このフォークは MIT の側だけで配布しています。

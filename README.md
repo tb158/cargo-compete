@@ -884,4 +884,6 @@ See [the section in the Japanese readme](README-ja.md#cargo-atcoder%E3%81%A8%E3%
 
 ## License
 
-Dual-licensed under [MIT](https://opensource.org/licenses/MIT) or [Apache-2.0](http://www.apache.org/licenses/LICENSE-2.0).
+Licensed under [MIT](https://opensource.org/licenses/MIT) (see [LICENSE-MIT](LICENSE-MIT)).
+
+This is a fork of [qryxip/cargo-compete](https://github.com/qryxip/cargo-compete) by way of [slow-cat/cargo-compete](https://github.com/slow-cat/cargo-compete), both modified since. The original is dual-licensed under MIT or Apache-2.0; this fork is distributed under the MIT option only.
