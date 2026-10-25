@@ -179,20 +179,12 @@ fn render_section_from_format_blocks(
         let inner = format_blocks_to_guess_result(&tc.format, vars, types);
         reads_string |= inner.reads_string;
         out.push("fn main() {".to_string());
-        out.push("    input! {".to_string());
-        for d in &decls {
-            out.push(format!("        {d}"));
-        }
-        out.push("    }".to_string());
+        push_input_block(&mut out, "    ", &decls);
         for l in &extra_lines {
             out.push(format!("    {l}"));
         }
         out.push(format!("    for _ in 0..{} {{", tc.count));
-        out.push("        input! {".to_string());
-        for d in &inner.decls {
-            out.push(format!("            {d}"));
-        }
-        out.push("        }".to_string());
+        push_input_block(&mut out, "        ", &inner.decls);
         for l in &inner.extra_lines {
             out.push(format!("        {l}"));
         }
@@ -204,11 +196,7 @@ fn render_section_from_format_blocks(
 
     if let Some(qb) = queries_block {
         out.push("fn main() {".to_string());
-        out.push("    input! {".to_string());
-        for d in &decls {
-            out.push(format!("        {d}"));
-        }
-        out.push("    }".to_string());
+        push_input_block(&mut out, "    ", &decls);
         for l in &extra_lines {
             out.push(format!("    {l}"));
         }
@@ -228,13 +216,14 @@ fn render_section_from_format_blocks(
                     .map(|d| d.trim_end_matches(',').to_string())
                     .collect();
                 if fields.is_empty() {
-                    out.push(format!("            {} => {{}},", branch.id));
+                    out.push(format!("            {} => {{}}", branch.id));
                 } else {
+                    out.push(format!("            {} => {{", branch.id));
                     out.push(format!(
-                        "            {} => {{ input! {{ {} }} }},",
-                        branch.id,
+                        "                input! {{ {} }}",
                         fields.join(", ")
                     ));
+                    out.push("            }".to_string());
                 }
             }
             out.push("            _ => unreachable!(),".to_string());
@@ -263,16 +252,24 @@ fn render_section_from_format_blocks(
 
     // Plain input
     out.push("fn main() {".to_string());
-    out.push("    input! {".to_string());
-    for d in &decls {
-        out.push(format!("        {d}"));
-    }
-    out.push("    }".to_string());
+    push_input_block(&mut out, "    ", &decls);
     for l in &extra_lines {
         out.push(format!("    {l}"));
     }
     out.push("}".to_string());
     Ok(with_use_line(out, reads_string, types))
+}
+
+fn push_input_block(out: &mut Vec<String>, indent: &str, decls: &[String]) {
+    if decls.is_empty() {
+        out.push(format!("{indent}input! {{}}"));
+        return;
+    }
+    out.push(format!("{indent}input! {{"));
+    for d in decls {
+        out.push(format!("{indent}    {d}"));
+    }
+    out.push(format!("{indent}}}"));
 }
 
 fn with_use_line(body: Vec<String>, reads_string: bool, types: &InputTypes) -> String {

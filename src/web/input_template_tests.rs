@@ -521,13 +521,89 @@ fn main() {
     for _ in 0..q {
         input! { t: u64 }
         match t {
-            1 => { input! { k: u64 } },
-            2 => { input! { u: String } },
+            1 => {
+                input! { k: u64 }
+            }
+            2 => {
+                input! { u: String }
+            }
             _ => unreachable!(),
         }
     }
 }",
         rendered,
+    );
+}
+
+#[test]
+fn render_empty_query_branch_and_test_case_body_as_rustfmt_does() {
+    use crate::parse::{QueriesBlock, QueryBranch, ScalarsBlock, TestCasesBlock};
+
+    let vars = std::collections::BTreeMap::new();
+    let queries = vec![
+        FormatBlock::Scalars(ScalarsBlock {
+            vars: vec!["q".to_string()],
+        }),
+        FormatBlock::Queries(QueriesBlock {
+            count: "q".to_string(),
+            discriminator: None,
+            types: vec![
+                QueryBranch {
+                    id: "1".to_string(),
+                    format: vec![FormatBlock::Scalars(ScalarsBlock {
+                        vars: vec!["x".to_string()],
+                    })],
+                },
+                QueryBranch {
+                    id: "2".to_string(),
+                    format: vec![],
+                },
+            ],
+        }),
+    ];
+    assert_eq!(
+        "use proconio::input;
+
+fn main() {
+    input! {
+        q: usize,
+    }
+    for _ in 0..q {
+        input! { qt: usize }
+        match qt {
+            1 => {
+                input! { x: usize }
+            }
+            2 => {}
+            _ => unreachable!(),
+        }
+    }
+}",
+        render_section_from_format_blocks(&queries, &vars, &InputTypes::default()).unwrap(),
+    );
+
+    let test_cases = vec![
+        FormatBlock::Scalars(ScalarsBlock {
+            vars: vec!["t".to_string()],
+        }),
+        FormatBlock::TestCases(TestCasesBlock {
+            count: "t".to_string(),
+            format: vec![],
+        }),
+    ];
+    assert_eq!(
+        "use proconio::input;
+
+fn main() {
+    input! {
+        t: usize,
+    }
+    for _ in 0..t {
+        input! {}
+        /* solve testcase */
+    }
+}",
+        render_section_from_format_blocks(&test_cases, &vars, &InputTypes::default()).unwrap(),
     );
 }
 
