@@ -307,6 +307,14 @@ fn main() {
 }
 '''
 
+# Types written in the `input!` code generated for AtCoder. (optional)
+#
+# Each value is trimmed and written as-is. Omitted keys keep `usize`, `i64` and `Chars`.
+#[template.input-types]
+#unsigned = "usize"
+#signed = "i64"
+#string = "Chars"
+
 [template.new]
 # `edition` for `Cargo.toml`.
 edition = "2024"
@@ -392,6 +400,8 @@ language_id = "6088"
 ```
 
 `template.header` is prepended to every source file that `cargo compete new` and `cargo compete add` write, including the `input!` code generated for AtCoder (which replaces `template.src`). If it does not end with a newline, one is added. No blank line is inserted; write one at the end of `header` if you want it.
+
+`template.input-types` changes the types in the `input!` code generated for AtCoder. `unsigned` replaces `usize` (including the variable that reads the query type), `signed` replaces `i64`, and `string` replaces `Chars`. Each value is trimmed and written as-is without any check. Omitted keys keep the default. `proconio::marker` is imported only when a string is actually read and `string` is `Chars` or `Bytes`; other types get no import, so write the path in the value if one is needed.
 
 And here is an example for `package.metadata` in `Cargo.toml`.
 

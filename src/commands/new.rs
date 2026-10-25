@@ -128,7 +128,7 @@ pub fn run(opt: OptCompeteNew, ctx: crate::Context<'_>) -> anyhow::Result<()> {
                     shell,
                 )?;
                 annotate_ymls_with_format(&manifest_dir, &yml_paths, shell)?;
-                match generate_template(&manifest_dir, shell)? {
+                match generate_template(&manifest_dir, &template.input_types, shell)? {
                     None => {}
                     Some(srcs) => {
                         for (src_path, content) in srcs {

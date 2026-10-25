@@ -22,7 +22,8 @@ fn parse_varlen_rows_with_fixed_prefixes() {
 
 fn render_task(task: &TaskSection) -> String {
     let rt = task_to_format_blocks(task);
-    render_section_from_format_blocks(&rt.format, &rt.vars).expect("render succeeds")
+    render_section_from_format_blocks(&rt.format, &rt.vars, &InputTypes::default())
+        .expect("render succeeds")
 }
 
 #[test]
@@ -237,7 +238,7 @@ fn format_blocks_to_guess_result_scalar_and_array() {
             jagged: false,
         }),
     ];
-    let result = format_blocks_to_guess_result(&blocks, &vars);
+    let result = format_blocks_to_guess_result(&blocks, &vars, &InputTypes::default());
     assert!(result.decls.iter().any(|d| d.contains("n: usize")));
     assert!(result.decls.iter().any(|d| d.contains("a: [usize; n]")));
 }
@@ -263,13 +264,14 @@ fn format_blocks_str_var_uses_chars() {
             vars: vec!["s".to_string()],
         }),
     ];
-    let result = format_blocks_to_guess_result(&blocks, &vars);
+    let result = format_blocks_to_guess_result(&blocks, &vars, &InputTypes::default());
     assert!(
         result.decls.iter().any(|d| d.contains("s: Chars,")),
         "single Chars var should be rendered as `s: Chars,`, got: {:?}",
         result.decls
     );
-    let rendered = render_section_from_format_blocks(&blocks, &vars).unwrap();
+    let rendered =
+        render_section_from_format_blocks(&blocks, &vars, &InputTypes::default()).unwrap();
     assert!(
         rendered.contains("use proconio::{input, marker::Chars};"),
         "rendered template should import Chars marker. got:\n{}",
@@ -287,7 +289,7 @@ fn format_blocks_jagged_outputs_proconio_jagged_syntax() {
         count: Some("n".to_string()),
         jagged: true,
     })];
-    let result = format_blocks_to_guess_result(&blocks, &vars);
+    let result = format_blocks_to_guess_result(&blocks, &vars, &InputTypes::default());
     assert!(
         result.decls.iter().any(|d| d.contains("a: [[usize]; n],")),
         "jagged array should emit proconio jagged syntax `[[usize]; n]`, got: {:?}",
@@ -312,7 +314,7 @@ fn format_blocks_chars_grid_2d() {
         count: Some("h".to_string()),
         jagged: false,
     })];
-    let result = format_blocks_to_guess_result(&blocks, &vars);
+    let result = format_blocks_to_guess_result(&blocks, &vars, &InputTypes::default());
     assert!(
         result.decls.iter().any(|d| d.contains("s: [Chars; h],")),
         "Chars 2D grid should be `[Chars; h]` with no inner width, got: {:?}",
@@ -337,7 +339,7 @@ fn format_blocks_chars_3d() {
         count: Some("f".to_string()),
         jagged: false,
     })];
-    let result = format_blocks_to_guess_result(&blocks, &vars);
+    let result = format_blocks_to_guess_result(&blocks, &vars, &InputTypes::default());
     assert!(
         result
             .decls
@@ -358,7 +360,7 @@ fn format_blocks_int_matrix_2d_uses_len_as_inner() {
         count: Some("h".to_string()),
         jagged: false,
     })];
-    let result = format_blocks_to_guess_result(&blocks, &vars);
+    let result = format_blocks_to_guess_result(&blocks, &vars, &InputTypes::default());
     assert!(
         result
             .decls
@@ -379,7 +381,7 @@ fn format_blocks_int_3d() {
         count: Some("f".to_string()),
         jagged: false,
     })];
-    let result = format_blocks_to_guess_result(&blocks, &vars);
+    let result = format_blocks_to_guess_result(&blocks, &vars, &InputTypes::default());
     assert!(
         result
             .decls
@@ -432,11 +434,153 @@ fn render_queries_with_chars_branch_imports_chars() {
         }),
         FormatBlock::Queries(queries),
     ];
-    let rendered = render_section_from_format_blocks(&blocks, &vars).unwrap();
+    let rendered =
+        render_section_from_format_blocks(&blocks, &vars, &InputTypes::default()).unwrap();
     assert!(
         rendered.contains("use proconio::{input, marker::Chars};"),
         "queries-with-Chars rendering should import Chars marker. got:\n{}",
         rendered,
+    );
+}
+
+#[test]
+fn input_types_replace_emitted_types() {
+    use crate::parse::{QueriesBlock, QueryBranch, RowsBlock, ScalarsBlock};
+
+    let types: InputTypes = toml::from_str(
+        r#"unsigned = " u64 "
+signed = "\ti32\n"
+string = " String "
+"#,
+    )
+    .unwrap();
+    let mut vars = std::collections::BTreeMap::new();
+    for (name, r#type) in [
+        ("x", VarType::I64),
+        ("y", VarType::I64),
+        ("s", VarType::Chars),
+        ("u", VarType::Chars),
+    ] {
+        vars.insert(
+            name.to_string(),
+            VarConstraint {
+                r#type,
+                ..Default::default()
+            },
+        );
+    }
+    let blocks = vec![
+        FormatBlock::Scalars(ScalarsBlock {
+            vars: vec!["n".to_string(), "x".to_string()],
+        }),
+        FormatBlock::Array(ArrayBlock {
+            base: "s".to_string(),
+            len: None,
+            height: None,
+            count: Some("n".to_string()),
+            jagged: false,
+        }),
+        FormatBlock::Rows(RowsBlock {
+            vars: vec!["p".to_string(), "y".to_string()],
+            len: "n".to_string(),
+        }),
+        FormatBlock::Scalars(ScalarsBlock {
+            vars: vec!["q".to_string()],
+        }),
+        FormatBlock::Queries(QueriesBlock {
+            count: "q".to_string(),
+            discriminator: Some("t".to_string()),
+            types: vec![
+                QueryBranch {
+                    id: "1".to_string(),
+                    format: vec![FormatBlock::Scalars(ScalarsBlock {
+                        vars: vec!["k".to_string()],
+                    })],
+                },
+                QueryBranch {
+                    id: "2".to_string(),
+                    format: vec![FormatBlock::Scalars(ScalarsBlock {
+                        vars: vec!["u".to_string()],
+                    })],
+                },
+            ],
+        }),
+    ];
+    let rendered = render_section_from_format_blocks(&blocks, &vars, &types).unwrap();
+    assert_eq!(
+        "use proconio::input;
+
+fn main() {
+    input! {
+        n: u64,
+        x: i32,
+        s: [String; n],
+        py: [(u64, i32); n],
+        q: u64,
+    }
+    for _ in 0..q {
+        input! { t: u64 }
+        match t {
+            1 => { input! { k: u64 } },
+            2 => { input! { u: String } },
+            _ => unreachable!(),
+        }
+    }
+}",
+        rendered,
+    );
+}
+
+#[test]
+fn input_types_bytes_imports_bytes_marker() {
+    let types: InputTypes = toml::from_str(r#"string = " Bytes ""#).unwrap();
+    let mut vars = std::collections::BTreeMap::new();
+    vars.insert(
+        "s".to_string(),
+        VarConstraint {
+            r#type: VarType::Chars,
+            ..Default::default()
+        },
+    );
+    let blocks = vec![FormatBlock::Array(ArrayBlock {
+        base: "s".to_string(),
+        len: None,
+        height: None,
+        count: Some("h".to_string()),
+        jagged: false,
+    })];
+    let rendered = render_section_from_format_blocks(&blocks, &vars, &types).unwrap();
+    assert_eq!(
+        "use proconio::{input, marker::Bytes};
+
+fn main() {
+    input! {
+        s: [Bytes; h],
+    }
+}",
+        rendered,
+    );
+}
+
+#[test]
+fn chars_marker_not_imported_without_string_input() {
+    let mut vars = std::collections::BTreeMap::new();
+    vars.insert(
+        "s".to_string(),
+        VarConstraint {
+            r#type: VarType::Chars,
+            ..Default::default()
+        },
+    );
+    let blocks = vec![FormatBlock::Scalars(crate::parse::ScalarsBlock {
+        vars: vec!["n".to_string()],
+    })];
+    let rendered =
+        render_section_from_format_blocks(&blocks, &vars, &InputTypes::default()).unwrap();
+    assert!(
+        rendered.starts_with("use proconio::input;\n"),
+        "{}",
+        rendered
     );
 }
 
@@ -475,7 +619,7 @@ fn annotate_and_generate_abc450_a() {
 
     // Now generate template from yml
     let mut shell2 = Shell::new();
-    let templates = generate_template(&contest_dir, &mut shell2)
+    let templates = generate_template(&contest_dir, &InputTypes::default(), &mut shell2)
         .unwrap()
         .unwrap();
     let src_path = contest_dir.join("src").join("bin").join("a.rs");
@@ -524,15 +668,16 @@ fn compare_old_new_generation_for_all_contests() {
 
         // Generate OLD templates (before annotation)
         let mut shell_old = Shell::new();
-        let old_templates = match generate_template(&contest_dir, &mut shell_old) {
-            Ok(Some(t)) => t,
-            _ => {
-                for (p, content) in &backups {
-                    std::fs::write(p, content).unwrap();
+        let old_templates =
+            match generate_template(&contest_dir, &InputTypes::default(), &mut shell_old) {
+                Ok(Some(t)) => t,
+                _ => {
+                    for (p, content) in &backups {
+                        std::fs::write(p, content).unwrap();
+                    }
+                    continue;
                 }
-                continue;
-            }
-        };
+            };
 
         // Annotate ymls
         let mut shell_ann = Shell::new();
@@ -540,15 +685,16 @@ fn compare_old_new_generation_for_all_contests() {
 
         // Generate NEW templates (from yml)
         let mut shell_new = Shell::new();
-        let new_templates = match generate_template(&contest_dir, &mut shell_new) {
-            Ok(Some(t)) => t,
-            _ => {
-                for (p, content) in &backups {
-                    std::fs::write(p, content).unwrap();
+        let new_templates =
+            match generate_template(&contest_dir, &InputTypes::default(), &mut shell_new) {
+                Ok(Some(t)) => t,
+                _ => {
+                    for (p, content) in &backups {
+                        std::fs::write(p, content).unwrap();
+                    }
+                    panic!("{}: new generate_template failed", contest);
                 }
-                panic!("{}: new generate_template failed", contest);
-            }
-        };
+            };
 
         // Compare
         for (path, old_content) in &old_templates {
@@ -623,7 +769,11 @@ fn print_comparison_report() {
         for task in &sections {
             let letter = task.letter.to_ascii_lowercase();
             let rt_old = task_to_format_blocks(task);
-            let old_rendered = render_section_from_format_blocks(&rt_old.format, &rt_old.vars);
+            let old_rendered = render_section_from_format_blocks(
+                &rt_old.format,
+                &rt_old.vars,
+                &InputTypes::default(),
+            );
 
             print!("[{}] OLD → ", letter);
             match &old_rendered {
@@ -671,7 +821,9 @@ fn print_comparison_report() {
 
         // NEW: from annotated ymls
         let mut shell2 = Shell::new();
-        if let Ok(Some(new_templates)) = generate_template(&contest_dir, &mut shell2) {
+        if let Ok(Some(new_templates)) =
+            generate_template(&contest_dir, &InputTypes::default(), &mut shell2)
+        {
             for task in &sections {
                 let letter = task.letter.to_ascii_lowercase();
                 let src_path = contest_dir
@@ -680,9 +832,12 @@ fn print_comparison_report() {
                     .join(format!("{}.rs", letter));
                 if let Some(new_content) = new_templates.get(&src_path) {
                     let rt_old = task_to_format_blocks(task);
-                    let old_rendered =
-                        render_section_from_format_blocks(&rt_old.format, &rt_old.vars)
-                            .unwrap_or_default();
+                    let old_rendered = render_section_from_format_blocks(
+                        &rt_old.format,
+                        &rt_old.vars,
+                        &InputTypes::default(),
+                    )
+                    .unwrap_or_default();
                     if old_rendered == *new_content {
                         println!("[{}] NEW → same as OLD ✓", letter);
                     } else {

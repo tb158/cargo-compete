@@ -191,6 +191,7 @@ impl CargoCompeteConfig {
 
             Ok(CargoCompeteConfigTemplate {
                 header: None,
+                input_types: CargoCompeteConfigTemplateInputTypes::default(),
                 src,
                 new: Some(CargoCompeteConfigTemplateNew {
                     edition: None,
@@ -210,8 +211,32 @@ impl CargoCompeteConfig {
 #[serde(rename_all = "kebab-case")]
 pub(crate) struct CargoCompeteConfigTemplate {
     pub(crate) header: Option<String>,
+    #[serde(default)]
+    pub(crate) input_types: CargoCompeteConfigTemplateInputTypes,
     pub(crate) src: String,
     pub(crate) new: Option<CargoCompeteConfigTemplateNew>,
+}
+
+#[derive(Deserialize, Default, Debug, Clone)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) struct CargoCompeteConfigTemplateInputTypes {
+    unsigned: Option<String>,
+    signed: Option<String>,
+    string: Option<String>,
+}
+
+impl CargoCompeteConfigTemplateInputTypes {
+    pub(crate) fn unsigned(&self) -> &str {
+        self.unsigned.as_deref().map_or("usize", str::trim)
+    }
+
+    pub(crate) fn signed(&self) -> &str {
+        self.signed.as_deref().map_or("i64", str::trim)
+    }
+
+    pub(crate) fn string(&self) -> &str {
+        self.string.as_deref().map_or("Chars", str::trim)
+    }
 }
 
 impl CargoCompeteConfigTemplate {
@@ -881,6 +906,38 @@ src = "fn main() {}\n"
 "#,
         )?;
         assert_eq!("fn main() {}\n", output);
+        Ok(())
+    }
+
+    #[test]
+    fn template_input_types() -> anyhow::Result<()> {
+        let template = toml::from_str::<CargoCompeteConfigTemplate>(
+            r#"src = "fn main() {}\n"
+
+[input-types]
+unsigned = " u64 "
+string = "Bytes"
+"#,
+        )?;
+        let types = &template.input_types;
+        assert_eq!(
+            ("u64", "i64", "Bytes"),
+            (types.unsigned(), types.signed(), types.string())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn template_input_types_unset() -> anyhow::Result<()> {
+        let template = toml::from_str::<CargoCompeteConfigTemplate>(
+            r#"src = "fn main() {}\n"
+"#,
+        )?;
+        let types = &template.input_types;
+        assert_eq!(
+            ("usize", "i64", "Chars"),
+            (types.unsigned(), types.signed(), types.string())
+        );
         Ok(())
     }
 }

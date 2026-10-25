@@ -33,6 +33,14 @@ fn main() {
 }
 '''
 
+# Types written in the `input!` code generated for AtCoder. (optional)
+#
+# Each value is trimmed and written as-is. Omitted keys keep `usize`, `i64` and `Chars`.
+#[template.input-types]
+#unsigned = "usize"
+#signed = "i64"
+#string = "Chars"
+
 [template.new]
 # `edition` for `Cargo.toml`.
 edition = "{{ template_new_edition }}"

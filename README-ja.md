@@ -312,6 +312,14 @@ fn main() {
 }
 '''
 
+# Types written in the `input!` code generated for AtCoder. (optional)
+#
+# Each value is trimmed and written as-is. Omitted keys keep `usize`, `i64` and `Chars`.
+#[template.input-types]
+#unsigned = "usize"
+#signed = "i64"
+#string = "Chars"
+
 [template.new]
 # `edition` for `Cargo.toml`.
 edition = "2024"
@@ -394,6 +402,8 @@ language_id = "6088"
 ```
 
 `template.header`は、`cargo compete new`と`cargo compete add`が書き出すすべてのソースファイルの先頭に付きます。AtCoderで`template.src`の代わりに生成される`input!`のコードにも付きます。末尾が改行で終わっていなければ改行を1つ補います。空行は入れないので、必要なら`header`の末尾に書いてください。
+
+`template.input-types`は、AtCoderで生成される`input!`のコードの型を変えます。`unsigned`は`usize`（クエリの種類を読む変数も含む）、`signed`は`i64`、`string`は`Chars`を置き換えます。値は前後の空白を除いてそのまま書き出し、中身のチェックはしません。書かなかったキーは既定の型のままです。`proconio::marker`は、実際に文字列を読み、かつ`string`が`Chars`か`Bytes`のときだけ`use`します。ほかの型には`use`を足さないので、必要なら値にパスごと書いてください。
 
 各`bin` targetに紐付くサイト上の問題は、パッケージの`Cargo.toml`の`[package.metadata]`に記述されます。
 
